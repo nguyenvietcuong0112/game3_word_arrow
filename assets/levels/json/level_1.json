@@ -1,0 +1,114 @@
+{
+  "levelIndex": 1,
+  "id": "05ai",
+  "difficulty": 1,
+  "revision": 10,
+  "name": "Level_1",
+  "data": {
+    "grid": {
+      "width": 3,
+      "height": 6
+    },
+    "lanes": [
+      {
+        "id": "lane_1",
+        "color": 15,
+        "arrow": {
+          "x": 0,
+          "y": 1
+        },
+        "direction": "up",
+        "cells": [
+          {
+            "x": 0,
+            "y": 2,
+            "letter": "F"
+          },
+          {
+            "x": 0,
+            "y": 3,
+            "letter": "I"
+          },
+          {
+            "x": 0,
+            "y": 4,
+            "letter": "N"
+          },
+          {
+            "x": 0,
+            "y": 5,
+            "letter": "D"
+          }
+        ]
+      },
+      {
+        "id": "lane_2",
+        "color": 13,
+        "arrow": {
+          "x": 2,
+          "y": 0
+        },
+        "direction": "up",
+        "cells": [
+          {
+            "x": 2,
+            "y": 1,
+            "letter": "W"
+          },
+          {
+            "x": 2,
+            "y": 2,
+            "letter": "O"
+          },
+          {
+            "x": 2,
+            "y": 3,
+            "letter": "R"
+          },
+          {
+            "x": 2,
+            "y": 4,
+            "letter": "D"
+          },
+          {
+            "x": 2,
+            "y": 5,
+            "letter": "S"
+          }
+        ]
+      },
+      {
+        "id": "lane_3",
+        "color": 5,
+        "arrow": {
+          "x": 1,
+          "y": 2
+        },
+        "direction": "up",
+        "cells": [
+          {
+            "x": 1,
+            "y": 3,
+            "letter": "T"
+          },
+          {
+            "x": 1,
+            "y": 4,
+            "letter": "H"
+          },
+          {
+            "x": 1,
+            "y": 5,
+            "letter": "E"
+          }
+        ]
+      }
+    ],
+    "crates": [],
+    "settings": {
+      "levelNumber": 1,
+      "moveLimit": 99,
+      "reviveMoves": 10
+    }
+  }
+}

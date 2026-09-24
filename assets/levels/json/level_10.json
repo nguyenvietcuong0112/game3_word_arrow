@@ -1,0 +1,140 @@
+{
+  "levelIndex": 10,
+  "id": "05ct",
+  "difficulty": 1,
+  "revision": 18,
+  "name": "Level_10",
+  "data": {
+    "grid": {
+      "width": 3,
+      "height": 8
+    },
+    "lanes": [
+      {
+        "id": "lane_2",
+        "color": 15,
+        "arrow": {
+          "x": 0,
+          "y": 1
+        },
+        "direction": "up",
+        "cells": [
+          {
+            "x": 0,
+            "y": 2,
+            "letter": "C"
+          },
+          {
+            "x": 0,
+            "y": 3,
+            "letter": "R"
+          },
+          {
+            "x": 0,
+            "y": 4,
+            "letter": "A"
+          },
+          {
+            "x": 0,
+            "y": 5,
+            "letter": "T"
+          },
+          {
+            "x": 0,
+            "y": 6,
+            "letter": "E"
+          },
+          {
+            "x": 0,
+            "y": 7,
+            "letter": "S"
+          }
+        ]
+      },
+      {
+        "id": "lane_3",
+        "color": 13,
+        "arrow": {
+          "x": 1,
+          "y": 2
+        },
+        "direction": "up",
+        "cells": [
+          {
+            "x": 1,
+            "y": 3,
+            "letter": "W"
+          },
+          {
+            "x": 1,
+            "y": 4,
+            "letter": "O"
+          },
+          {
+            "x": 1,
+            "y": 5,
+            "letter": "R"
+          },
+          {
+            "x": 1,
+            "y": 6,
+            "letter": "D"
+          },
+          {
+            "x": 1,
+            "y": 7,
+            "letter": "S"
+          }
+        ]
+      },
+      {
+        "id": "lane_4",
+        "color": 5,
+        "arrow": {
+          "x": 2,
+          "y": 1
+        },
+        "direction": "up",
+        "cells": [
+          {
+            "x": 2,
+            "y": 2,
+            "letter": "B"
+          },
+          {
+            "x": 2,
+            "y": 3,
+            "letter": "L"
+          },
+          {
+            "x": 2,
+            "y": 4,
+            "letter": "O"
+          },
+          {
+            "x": 2,
+            "y": 5,
+            "letter": "C"
+          },
+          {
+            "x": 2,
+            "y": 6,
+            "letter": "K"
+          }
+        ]
+      }
+    ],
+    "crates": [
+      {
+        "x": 1,
+        "y": 0,
+        "threshold": 2
+      }
+    ],
+    "settings": {
+      "levelNumber": 10,
+      "moveLimit": 10,
+      "reviveMoves": 10
+    }
+  }
+}

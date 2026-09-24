@@ -1,0 +1,189 @@
+{
+  "levelIndex": 13,
+  "id": "05hy",
+  "difficulty": 1,
+  "revision": 17,
+  "name": "Level_13",
+  "data": {
+    "grid": {
+      "width": 4,
+      "height": 7
+    },
+    "lanes": [
+      {
+        "id": "lane_1",
+        "color": 3,
+        "arrow": {
+          "x": 0,
+          "y": 0
+        },
+        "direction": "up",
+        "cells": [
+          {
+            "x": 0,
+            "y": 1,
+            "letter": "S"
+          },
+          {
+            "x": 0,
+            "y": 2,
+            "letter": "I"
+          },
+          {
+            "x": 0,
+            "y": 3,
+            "letter": "N"
+          },
+          {
+            "x": 0,
+            "y": 4,
+            "letter": "G"
+          },
+          {
+            "x": 0,
+            "y": 5,
+            "letter": "L"
+          },
+          {
+            "x": 1,
+            "y": 5,
+            "letter": "E"
+          }
+        ],
+        "hidden": true
+      },
+      {
+        "id": "lane_2",
+        "color": 9,
+        "arrow": {
+          "x": 3,
+          "y": 0
+        },
+        "direction": "up",
+        "cells": [
+          {
+            "x": 3,
+            "y": 1,
+            "letter": "F"
+          },
+          {
+            "x": 3,
+            "y": 2,
+            "letter": "A"
+          },
+          {
+            "x": 3,
+            "y": 3,
+            "letter": "M"
+          },
+          {
+            "x": 3,
+            "y": 4,
+            "letter": "I"
+          },
+          {
+            "x": 3,
+            "y": 5,
+            "letter": "L"
+          },
+          {
+            "x": 3,
+            "y": 6,
+            "letter": "Y"
+          }
+        ],
+        "hidden": true
+      },
+      {
+        "id": "lane_3",
+        "color": 13,
+        "arrow": {
+          "x": 2,
+          "y": 0
+        },
+        "direction": "up",
+        "cells": [
+          {
+            "x": 2,
+            "y": 1,
+            "letter": "C"
+          },
+          {
+            "x": 2,
+            "y": 2,
+            "letter": "O"
+          },
+          {
+            "x": 2,
+            "y": 3,
+            "letter": "M"
+          },
+          {
+            "x": 2,
+            "y": 4,
+            "letter": "P"
+          },
+          {
+            "x": 2,
+            "y": 5,
+            "letter": "U"
+          },
+          {
+            "x": 2,
+            "y": 6,
+            "letter": "T"
+          },
+          {
+            "x": 1,
+            "y": 6,
+            "letter": "E"
+          },
+          {
+            "x": 0,
+            "y": 6,
+            "letter": "R"
+          }
+        ],
+        "hidden": true
+      },
+      {
+        "id": "lane_4",
+        "color": 15,
+        "arrow": {
+          "x": 1,
+          "y": 0
+        },
+        "direction": "up",
+        "cells": [
+          {
+            "x": 1,
+            "y": 1,
+            "letter": "F"
+          },
+          {
+            "x": 1,
+            "y": 2,
+            "letter": "O"
+          },
+          {
+            "x": 1,
+            "y": 3,
+            "letter": "O"
+          },
+          {
+            "x": 1,
+            "y": 4,
+            "letter": "T"
+          }
+        ],
+        "hidden": true
+      }
+    ],
+    "crates": [],
+    "settings": {
+      "levelNumber": 13,
+      "moveLimit": 24,
+      "reviveMoves": 10
+    }
+  }
+}

@@ -1,0 +1,415 @@
+{
+  "levelIndex": 46,
+  "id": "05xs",
+  "difficulty": 1,
+  "revision": 30,
+  "name": "Level_46",
+  "data": {
+    "grid": {
+      "width": 7,
+      "height": 12
+    },
+    "lanes": [
+      {
+        "id": "lane_1",
+        "color": 7,
+        "arrow": {
+          "x": 2,
+          "y": 4
+        },
+        "direction": "left",
+        "cells": [
+          {
+            "x": 3,
+            "y": 4,
+            "letter": "S"
+          },
+          {
+            "x": 4,
+            "y": 4,
+            "letter": "I"
+          },
+          {
+            "x": 4,
+            "y": 5,
+            "letter": "S"
+          },
+          {
+            "x": 4,
+            "y": 6,
+            "letter": "T"
+          },
+          {
+            "x": 3,
+            "y": 6,
+            "letter": "E"
+          },
+          {
+            "x": 2,
+            "y": 6,
+            "letter": "R"
+          }
+        ],
+        "hidden": true
+      },
+      {
+        "id": "lane_3",
+        "color": 10,
+        "arrow": {
+          "x": 6,
+          "y": 3
+        },
+        "direction": "right",
+        "cells": [
+          {
+            "x": 5,
+            "y": 3,
+            "letter": "F"
+          },
+          {
+            "x": 4,
+            "y": 3,
+            "letter": "A"
+          },
+          {
+            "x": 3,
+            "y": 3,
+            "letter": "R"
+          },
+          {
+            "x": 2,
+            "y": 3,
+            "letter": "M"
+          },
+          {
+            "x": 1,
+            "y": 3,
+            "letter": "I"
+          },
+          {
+            "x": 1,
+            "y": 4,
+            "letter": "N"
+          },
+          {
+            "x": 1,
+            "y": 5,
+            "letter": "G"
+          }
+        ]
+      },
+      {
+        "id": "lane_5",
+        "color": 1,
+        "arrow": {
+          "x": 1,
+          "y": 8
+        },
+        "direction": "left",
+        "cells": [
+          {
+            "x": 2,
+            "y": 8,
+            "letter": "S"
+          },
+          {
+            "x": 3,
+            "y": 8,
+            "letter": "T"
+          },
+          {
+            "x": 4,
+            "y": 8,
+            "letter": "O"
+          },
+          {
+            "x": 4,
+            "y": 7,
+            "letter": "N"
+          },
+          {
+            "x": 3,
+            "y": 7,
+            "letter": "E"
+          }
+        ]
+      },
+      {
+        "id": "lane_6",
+        "color": 3,
+        "arrow": {
+          "x": 2,
+          "y": 2
+        },
+        "direction": "right",
+        "cells": [
+          {
+            "x": 1,
+            "y": 2,
+            "letter": "A"
+          },
+          {
+            "x": 0,
+            "y": 2,
+            "letter": "T"
+          },
+          {
+            "x": 0,
+            "y": 3,
+            "letter": "T"
+          },
+          {
+            "x": 0,
+            "y": 4,
+            "letter": "A"
+          },
+          {
+            "x": 0,
+            "y": 5,
+            "letter": "C"
+          },
+          {
+            "x": 0,
+            "y": 6,
+            "letter": "K"
+          }
+        ]
+      },
+      {
+        "id": "lane_7",
+        "color": 13,
+        "arrow": {
+          "x": 0,
+          "y": 8
+        },
+        "direction": "up",
+        "cells": [
+          {
+            "x": 0,
+            "y": 9,
+            "letter": "F"
+          },
+          {
+            "x": 0,
+            "y": 10,
+            "letter": "L"
+          },
+          {
+            "x": 1,
+            "y": 10,
+            "letter": "O"
+          },
+          {
+            "x": 2,
+            "y": 10,
+            "letter": "W"
+          },
+          {
+            "x": 2,
+            "y": 9,
+            "letter": "E"
+          },
+          {
+            "x": 1,
+            "y": 9,
+            "letter": "R"
+          }
+        ]
+      },
+      {
+        "id": "lane_9",
+        "color": 15,
+        "arrow": {
+          "x": 5,
+          "y": 7
+        },
+        "direction": "up",
+        "cells": [
+          {
+            "x": 5,
+            "y": 8,
+            "letter": "P"
+          },
+          {
+            "x": 5,
+            "y": 9,
+            "letter": "A"
+          },
+          {
+            "x": 5,
+            "y": 10,
+            "letter": "T"
+          },
+          {
+            "x": 6,
+            "y": 10,
+            "letter": "T"
+          },
+          {
+            "x": 6,
+            "y": 9,
+            "letter": "E"
+          },
+          {
+            "x": 6,
+            "y": 8,
+            "letter": "R"
+          },
+          {
+            "x": 6,
+            "y": 7,
+            "letter": "N"
+          }
+        ],
+        "hidden": true
+      },
+      {
+        "id": "lane_10",
+        "color": 8,
+        "arrow": {
+          "x": 5,
+          "y": 4
+        },
+        "direction": "up",
+        "cells": [
+          {
+            "x": 5,
+            "y": 5,
+            "letter": "S"
+          },
+          {
+            "x": 5,
+            "y": 6,
+            "letter": "K"
+          },
+          {
+            "x": 6,
+            "y": 6,
+            "letter": "Y"
+          }
+        ]
+      },
+      {
+        "id": "lane_11",
+        "color": 0,
+        "arrow": {
+          "x": 0,
+          "y": 1
+        },
+        "direction": "left",
+        "cells": [
+          {
+            "x": 1,
+            "y": 1,
+            "letter": "L"
+          },
+          {
+            "x": 2,
+            "y": 1,
+            "letter": "I"
+          },
+          {
+            "x": 3,
+            "y": 1,
+            "letter": "T"
+          },
+          {
+            "x": 4,
+            "y": 1,
+            "letter": "T"
+          },
+          {
+            "x": 4,
+            "y": 2,
+            "letter": "L"
+          },
+          {
+            "x": 3,
+            "y": 2,
+            "letter": "E"
+          }
+        ]
+      },
+      {
+        "id": "lane_12",
+        "color": 6,
+        "arrow": {
+          "x": 2,
+          "y": 11
+        },
+        "direction": "left",
+        "cells": [
+          {
+            "x": 3,
+            "y": 11,
+            "letter": "L"
+          },
+          {
+            "x": 4,
+            "y": 11,
+            "letter": "A"
+          },
+          {
+            "x": 4,
+            "y": 10,
+            "letter": "N"
+          },
+          {
+            "x": 4,
+            "y": 9,
+            "letter": "D"
+          }
+        ],
+        "hidden": true
+      },
+      {
+        "id": "lane_13",
+        "color": 4,
+        "arrow": {
+          "x": 3,
+          "y": 0
+        },
+        "direction": "left",
+        "cells": [
+          {
+            "x": 4,
+            "y": 0,
+            "letter": "F"
+          },
+          {
+            "x": 5,
+            "y": 0,
+            "letter": "R"
+          },
+          {
+            "x": 6,
+            "y": 0,
+            "letter": "U"
+          },
+          {
+            "x": 6,
+            "y": 1,
+            "letter": "I"
+          },
+          {
+            "x": 6,
+            "y": 2,
+            "letter": "T"
+          }
+        ]
+      }
+    ],
+    "crates": [
+      {
+        "x": 5,
+        "y": 2,
+        "threshold": 3
+      }
+    ],
+    "settings": {
+      "levelNumber": 21,
+      "moveLimit": 22,
+      "reviveMoves": 10
+    }
+  }
+}

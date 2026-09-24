@@ -1,0 +1,234 @@
+{
+  "levelIndex": 5,
+  "id": "068e",
+  "difficulty": 1,
+  "revision": 18,
+  "name": "Level_5_B",
+  "data": {
+    "grid": {
+      "width": 5,
+      "height": 10
+    },
+    "lanes": [
+      {
+        "id": "lane_1",
+        "color": 0,
+        "arrow": {
+          "x": 0,
+          "y": 0
+        },
+        "direction": "up",
+        "cells": [
+          {
+            "x": 0,
+            "y": 1,
+            "letter": "P"
+          },
+          {
+            "x": 0,
+            "y": 2,
+            "letter": "L"
+          },
+          {
+            "x": 0,
+            "y": 3,
+            "letter": "A"
+          },
+          {
+            "x": 0,
+            "y": 4,
+            "letter": "Y"
+          }
+        ]
+      },
+      {
+        "id": "lane_3",
+        "color": 13,
+        "arrow": {
+          "x": 1,
+          "y": 1
+        },
+        "direction": "up",
+        "cells": [
+          {
+            "x": 1,
+            "y": 2,
+            "letter": "T"
+          },
+          {
+            "x": 1,
+            "y": 3,
+            "letter": "H"
+          },
+          {
+            "x": 1,
+            "y": 4,
+            "letter": "I"
+          },
+          {
+            "x": 1,
+            "y": 5,
+            "letter": "S"
+          }
+        ]
+      },
+      {
+        "id": "lane_7",
+        "color": 15,
+        "arrow": {
+          "x": 2,
+          "y": 2
+        },
+        "direction": "up",
+        "cells": [
+          {
+            "x": 2,
+            "y": 3,
+            "letter": "B"
+          },
+          {
+            "x": 2,
+            "y": 4,
+            "letter": "E"
+          },
+          {
+            "x": 2,
+            "y": 5,
+            "letter": "S"
+          },
+          {
+            "x": 2,
+            "y": 6,
+            "letter": "T"
+          }
+        ]
+      },
+      {
+        "id": "lane_8",
+        "color": 12,
+        "arrow": {
+          "x": 1,
+          "y": 9
+        },
+        "direction": "left",
+        "cells": [
+          {
+            "x": 2,
+            "y": 9,
+            "letter": "F"
+          },
+          {
+            "x": 3,
+            "y": 9,
+            "letter": "U"
+          },
+          {
+            "x": 4,
+            "y": 9,
+            "letter": "N"
+          }
+        ]
+      },
+      {
+        "id": "lane_10",
+        "color": 7,
+        "arrow": {
+          "x": 3,
+          "y": 1
+        },
+        "direction": "up",
+        "cells": [
+          {
+            "x": 3,
+            "y": 2,
+            "letter": "W"
+          },
+          {
+            "x": 3,
+            "y": 3,
+            "letter": "O"
+          },
+          {
+            "x": 3,
+            "y": 4,
+            "letter": "R"
+          },
+          {
+            "x": 3,
+            "y": 5,
+            "letter": "D"
+          }
+        ]
+      },
+      {
+        "id": "lane_9",
+        "color": 1,
+        "arrow": {
+          "x": 0,
+          "y": 8
+        },
+        "direction": "left",
+        "cells": [
+          {
+            "x": 1,
+            "y": 8,
+            "letter": "H"
+          },
+          {
+            "x": 2,
+            "y": 8,
+            "letter": "A"
+          },
+          {
+            "x": 3,
+            "y": 8,
+            "letter": "V"
+          },
+          {
+            "x": 4,
+            "y": 8,
+            "letter": "E"
+          }
+        ]
+      },
+      {
+        "id": "lane_12",
+        "color": 3,
+        "arrow": {
+          "x": 4,
+          "y": 0
+        },
+        "direction": "up",
+        "cells": [
+          {
+            "x": 4,
+            "y": 1,
+            "letter": "G"
+          },
+          {
+            "x": 4,
+            "y": 2,
+            "letter": "A"
+          },
+          {
+            "x": 4,
+            "y": 3,
+            "letter": "M"
+          },
+          {
+            "x": 4,
+            "y": 4,
+            "letter": "E"
+          }
+        ]
+      }
+    ],
+    "crates": [],
+    "settings": {
+      "levelNumber": 5,
+      "levelType": "default",
+      "moveLimit": 99,
+      "reviveMoves": 10
+    }
+  }
+}

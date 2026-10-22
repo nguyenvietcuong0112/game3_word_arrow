@@ -45,6 +45,8 @@ class BoardController extends ChangeNotifier {
     activeCrates = level.crates.map((c) => c.clone()).toList();
   }
 
+  void notifyBoardChanged() => notifyListeners();
+
   /// Check if a cell is occupied by any active lane (other than [excludeLane])
   bool isCellOccupiedByOtherLane(int x, int y, {Lane? excludeLane}) {
     for (final lane in activeLanes) {
@@ -65,6 +67,8 @@ class BoardController extends ChangeNotifier {
   /// Raycast along lane's arrow direction from arrow position to board edge
   /// Returns true if CLEAR to exit, false if BLOCKED by other lane or crate
   bool isPathClear(Lane lane) {
+    if (lane.isLocked) return false;
+
     int dx = 0;
     int dy = 0;
     switch (lane.direction.toLowerCase()) {
@@ -337,9 +341,15 @@ class BoardController extends ChangeNotifier {
     }
   }
 
+  /// Booster: Rocket / Firework callback delegate
+  bool Function()? onRocketBoosterTriggered;
+
   /// Booster: Rocket / Firework (Clears first clear or removes an obstacle crate)
   bool useRocketBooster() {
     if (status != GameStatus.playing) return false;
+    if (onRocketBoosterTriggered != null) {
+      return onRocketBoosterTriggered!();
+    }
 
     if (activeCrates.isNotEmpty) {
       activeCrates.removeAt(0);
@@ -360,7 +370,7 @@ class BoardController extends ChangeNotifier {
   /// Revive when out of moves or stars
   void revive() {
     movesLeft += 10;
-    stars = max(1, stars);
+    stars = 3;
     status = GameStatus.playing;
     notifyListeners();
   }

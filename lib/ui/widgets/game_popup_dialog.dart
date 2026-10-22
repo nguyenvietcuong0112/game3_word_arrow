@@ -5,6 +5,7 @@ class GamePopupDialog extends StatelessWidget {
   final Widget child;
   final VoidCallback? onClose;
   final double maxWidth;
+  final String? titleBgAsset;
 
   const GamePopupDialog({
     super.key,
@@ -12,6 +13,7 @@ class GamePopupDialog extends StatelessWidget {
     required this.child,
     this.onClose,
     this.maxWidth = 340,
+    this.titleBgAsset,
   });
 
   @override
@@ -50,7 +52,7 @@ class GamePopupDialog extends StatelessWidget {
                   alignment: Alignment.center,
                   children: [
                     Image.asset(
-                      'assets/images/popups/GeneralOrangePopupTitleBG.png',
+                      titleBgAsset ?? 'assets/images/popups/GeneralOrangePopupTitleBG.png',
                       width: 260,
                       height: 72,
                       fit: BoxFit.fill,

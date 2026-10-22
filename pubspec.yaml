@@ -37,6 +37,7 @@ dependencies:
   audioplayers: ^6.8.1
   shared_preferences: ^2.5.5
   flutter_animate: ^4.5.2
+  flame: ^1.38.2
 
 dev_dependencies:
   flutter_test:

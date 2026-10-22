@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-enum GameButtonColor { green, orange, blue, red }
+enum GameButtonColor { green, orange, blue, red, purple }
 
 class GameButton extends StatelessWidget {
   final String text;
@@ -26,23 +26,33 @@ class GameButton extends StatelessWidget {
   Widget build(BuildContext context) {
     String assetPath;
     Color shadowColor;
+    Rect centerSlice;
 
     switch (color) {
       case GameButtonColor.green:
         assetPath = 'assets/images/ui/GeneralGreenButton.png';
         shadowColor = const Color(0xFF0F4A14);
+        centerSlice = const Rect.fromLTRB(20, 20, 76, 76);
         break;
       case GameButtonColor.orange:
         assetPath = 'assets/images/ui/GeneralOrangeButton.png';
         shadowColor = const Color(0xFF7C2D12);
+        centerSlice = const Rect.fromLTRB(20, 20, 76, 76);
         break;
       case GameButtonColor.blue:
         assetPath = 'assets/images/ui/GeneralBlueButton.png';
         shadowColor = const Color(0xFF0C4A6E);
+        centerSlice = const Rect.fromLTRB(20, 20, 76, 76);
         break;
       case GameButtonColor.red:
         assetPath = 'assets/images/ui/GeneralRedButton.png';
         shadowColor = const Color(0xFF7F1D1D);
+        centerSlice = const Rect.fromLTRB(20, 20, 76, 76);
+        break;
+      case GameButtonColor.purple:
+        assetPath = 'assets/images/ui/GeneralPurpleButton.png';
+        shadowColor = const Color(0xFF4A0E4E);
+        centerSlice = const Rect.fromLTRB(50, 50, 206, 206);
         break;
     }
 
@@ -55,7 +65,7 @@ class GameButton extends StatelessWidget {
         decoration: BoxDecoration(
           image: DecorationImage(
             image: AssetImage(assetPath),
-            centerSlice: const Rect.fromLTRB(20, 20, 76, 76),
+            centerSlice: centerSlice,
             fit: BoxFit.fill,
           ),
         ),

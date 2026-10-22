@@ -26,6 +26,7 @@ class _GameScreenState extends State<GameScreen> {
   BoardController? _controller;
   bool _isLoading = true;
   String? _errorMessage;
+  bool _isDialogShowing = false;
 
   @override
   void initState() {
@@ -41,6 +42,7 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   Future<void> _loadLevel(int levelNum) async {
+    _isDialogShowing = false;
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -82,14 +84,23 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void _showVictoryDialog() {
-    Future.delayed(const Duration(milliseconds: 400), () {
+    if (_isDialogShowing) return;
+    _isDialogShowing = true;
+
+    final earnedStars = _controller?.stars ?? 3;
+    _levelService.saveLevelStars(_currentLevelNumber, earnedStars);
+    _levelService.addCoins(50);
+    _levelService.unlockNextLevel();
+
+    Future.delayed(const Duration(milliseconds: 300), () {
       if (!mounted) return;
       showDialog(
         context: context,
         barrierDismissible: false,
+        barrierColor: Colors.black.withOpacity(0.72),
         builder: (_) => VictoryDialog(
           levelNumber: _currentLevelNumber,
-          stars: _controller?.stars ?? 3,
+          stars: earnedStars,
           coinsEarned: 50,
           onNextLevel: () {
             Navigator.pop(context);
@@ -106,20 +117,26 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void _showGameOverDialog() {
+    if (_isDialogShowing) return;
+    _isDialogShowing = true;
+
     Future.delayed(const Duration(milliseconds: 300), () {
       if (!mounted) return;
       showDialog(
         context: context,
         barrierDismissible: false,
+        barrierColor: Colors.black.withOpacity(0.72),
         builder: (_) => GameOverDialog(
           levelNumber: _currentLevelNumber,
           isOutOfStars: (_controller?.stars ?? 0) <= 0,
           onRetry: () {
             Navigator.pop(context);
+            _isDialogShowing = false;
             _loadLevel(_currentLevelNumber);
           },
           onRevive: () {
             Navigator.pop(context);
+            _isDialogShowing = false;
             _controller?.revive();
           },
         ),
@@ -130,6 +147,7 @@ class _GameScreenState extends State<GameScreen> {
   void _openLevelSelect() {
     showDialog(
       context: context,
+      barrierColor: Colors.black.withOpacity(0.72),
       builder: (_) => LevelSelectDialog(
         currentLevel: _currentLevelNumber,
         onSelectLevel: (lvl) {
@@ -142,6 +160,7 @@ class _GameScreenState extends State<GameScreen> {
   void _openSettings() {
     showDialog(
       context: context,
+      barrierColor: Colors.black.withOpacity(0.72),
       builder: (_) => SettingsDialog(
         onRestart: () {
           _loadLevel(_currentLevelNumber);
@@ -170,10 +189,11 @@ class _GameScreenState extends State<GameScreen> {
           Positioned.fill(
             child: Image.asset(
               'assets/images/backgrounds/WordOutLevelBackground.png',
-              fit: BoxFit.cover,
+              fit: BoxFit.fill,
             ),
           ),
           SafeArea(
+            bottom: false,
             child: Stack(
               children: [
                 // Main Game Layout
@@ -202,7 +222,12 @@ class _GameScreenState extends State<GameScreen> {
                                 style: const TextStyle(color: Colors.white, fontSize: 16),
                               ),
                             )
-                          : GameBoard(controller: _controller!),
+                          : GameBoard(
+                              key: ValueKey(_controller),
+                              controller: _controller!,
+                              onWin: _showVictoryDialog,
+                              onLose: _showGameOverDialog,
+                            ),
                 ),
 
                 // Bottom Bar
@@ -249,22 +274,29 @@ class _GameScreenState extends State<GameScreen> {
             // Hammer Mode Banner Indicator
             if (_controller != null && _controller!.isHammerActive)
               Positioned(
-                top: 70,
-                left: 0,
-                right: 0,
+                top: 76,
+                left: 20,
+                right: 20,
                 child: Center(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.75),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.amber, width: 2),
+                      color: const Color(0xEE0B192C),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: const Color(0xFFFFD530), width: 2),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Colors.black45,
+                          blurRadius: 10,
+                          offset: Offset(0, 4),
+                        ),
+                      ],
                     ),
                     child: const Text(
-                      'HAMMER ACTIVE: Tap any tile or crate to destroy!',
+                      '🔨 HAMMER: Tap any tile or crate to smash!',
                       style: TextStyle(
                         fontFamily: 'Panteon',
-                        fontSize: 14,
+                        fontSize: 13,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                       ),

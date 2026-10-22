@@ -17,7 +17,7 @@ class GameTopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 8.0),
+      padding: const EdgeInsets.fromLTRB(14.0, 16.0, 14.0, 8.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -143,7 +143,24 @@ class GameTopBar extends StatelessWidget {
                         fontFamily: 'Panteon',
                         fontSize: 16,
                         fontWeight: FontWeight.w900,
-                        color: Color(0xFF381005),
+                        color: Colors.white,
+                        shadows: [
+                          Shadow(
+                            offset: Offset(0, 1.5),
+                            color: Color(0xFF381005),
+                            blurRadius: 1.5,
+                          ),
+                          Shadow(
+                            offset: Offset(1, 0),
+                            color: Color(0xFF381005),
+                            blurRadius: 1.5,
+                          ),
+                          Shadow(
+                            offset: Offset(-1, 0),
+                            color: Color(0xFF381005),
+                            blurRadius: 1.5,
+                          ),
+                        ],
                       ),
                     ),
                   ),

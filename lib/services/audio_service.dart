@@ -1,4 +1,5 @@
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AudioService {
@@ -7,7 +8,8 @@ class AudioService {
   AudioService._internal();
 
   final AudioPlayer _bgmPlayer = AudioPlayer();
-  final AudioPlayer _sfxPlayer = AudioPlayer();
+  final List<AudioPlayer> _sfxPool = List.generate(6, (_) => AudioPlayer());
+  int _poolIndex = 0;
 
   bool _isMusicEnabled = true;
   bool _isSfxEnabled = true;
@@ -22,7 +24,9 @@ class AudioService {
 
     await _bgmPlayer.setReleaseMode(ReleaseMode.loop);
     await _bgmPlayer.setVolume(0.45);
-    await _sfxPlayer.setVolume(0.85);
+    for (final p in _sfxPool) {
+      await p.setVolume(0.85);
+    }
 
     if (_isMusicEnabled) {
       playBgm();
@@ -71,28 +75,63 @@ class AudioService {
   Future<void> playSfx(String soundName) async {
     if (!_isSfxEnabled) return;
     try {
-      final player = AudioPlayer();
-      await player.setVolume(0.85);
+      final player = _sfxPool[_poolIndex];
+      _poolIndex = (_poolIndex + 1) % _sfxPool.length;
+      await player.stop();
       await player.play(AssetSource('audio/sfx/$soundName'));
-      player.onPlayerComplete.listen((_) {
-        player.dispose();
-      });
     } catch (_) {}
   }
 
-  // Common sound triggers
-  void playTileSelect() => playSfx('SFX_Menu_UI_Pop.ogg');
-  void playSwipe() => playSfx('SFX_Common_UI_Swipe_Swoosh_Long.ogg');
-  void playLaneClear() => playSfx('SFX_InGame_Play_Column_Complete_Single.ogg');
-  void playBlockedBounce() => playSfx('SFX_Common_UI_Click_Negative.ogg');
-  void playCrateHit() => playSfx('SFX_Common_UI_Purchase_Success.ogg');
+  // Common sound & haptic triggers
+  void playTileSelect() {
+    HapticFeedback.selectionClick();
+    playSfx('SFX_Menu_UI_Pop.ogg');
+  }
+
+  void playSwipe() {
+    playSfx('SFX_Common_UI_Swipe_Swoosh_Long.ogg');
+  }
+
+  void playLaneClear() {
+    HapticFeedback.mediumImpact();
+    playSfx('SFX_InGame_Play_Column_Complete_Single.ogg');
+  }
+
+  void playBlockedBounce() {
+    HapticFeedback.heavyImpact();
+    playSfx('SFX_Common_UI_Click_Negative.ogg');
+  }
+
+  void playUnlock() {
+    HapticFeedback.mediumImpact();
+    playSfx('SFX_Menu_UI_Unlock.ogg');
+  }
+
+  void playCrateHit() {
+    HapticFeedback.mediumImpact();
+    playSfx('SFX_Common_UI_Purchase_Success.ogg');
+  }
+
   void playWin() {
+    HapticFeedback.heavyImpact();
     playSfx('SFX_InGame_Play_RoundEnd_Win.ogg');
     Future.delayed(const Duration(milliseconds: 300), () {
       playSfx('SFX_InGame_Play_Confetti.ogg');
     });
   }
-  void playLose() => playSfx('SFX_InGame_Play_RoundEnd_Lose.ogg');
-  void playButtonClick() => playSfx('SFX_Common_UI_Click_Generic.ogg');
-  void playReward() => playSfx('SFX_Menu_UI_Sparkles.ogg');
+
+  void playLose() {
+    HapticFeedback.vibrate();
+    playSfx('SFX_InGame_Play_RoundEnd_Lose.ogg');
+  }
+
+  void playButtonClick() {
+    HapticFeedback.lightImpact();
+    playSfx('SFX_Common_UI_Click_Generic.ogg');
+  }
+
+  void playReward() {
+    HapticFeedback.lightImpact();
+    playSfx('SFX_Menu_UI_Sparkles.ogg');
+  }
 }

@@ -83,16 +83,44 @@ class LetterCell {
   final int x;
   final int y;
   final String letter;
+  final bool locked;
+  final PointPos? keyRef;
 
-  const LetterCell({required this.x, required this.y, required this.letter});
+  const LetterCell({
+    required this.x,
+    required this.y,
+    required this.letter,
+    this.locked = false,
+    this.keyRef,
+  });
 
   PointPos get pos => PointPos(x: x, y: y);
+
+  LetterCell copyWith({
+    int? x,
+    int? y,
+    String? letter,
+    bool? locked,
+    PointPos? keyRef,
+  }) {
+    return LetterCell(
+      x: x ?? this.x,
+      y: y ?? this.y,
+      letter: letter ?? this.letter,
+      locked: locked ?? this.locked,
+      keyRef: keyRef ?? this.keyRef,
+    );
+  }
 
   factory LetterCell.fromJson(Map<String, dynamic> json) {
     return LetterCell(
       x: json['x'] ?? 0,
       y: json['y'] ?? 0,
       letter: json['letter'] ?? '',
+      locked: json['locked'] == true,
+      keyRef: json['keyRef'] != null
+          ? PointPos.fromJson(json['keyRef'] as Map<String, dynamic>)
+          : null,
     );
   }
 }
@@ -103,6 +131,7 @@ class Lane {
   final PointPos arrow;
   final String direction; // "up", "down", "left", "right"
   final List<LetterCell> cells;
+  final bool hidden;
 
   Lane({
     required this.id,
@@ -110,6 +139,7 @@ class Lane {
     required this.arrow,
     required this.direction,
     required this.cells,
+    this.hidden = false,
   });
 
   /// The complete word formed by this lane
@@ -117,6 +147,27 @@ class Lane {
 
   /// Total count of letters
   int get length => cells.length;
+
+  /// Whether any cell in this lane is locked
+  bool get isLocked => cells.any((c) => c.locked);
+
+  Lane copyWith({
+    String? id,
+    int? color,
+    PointPos? arrow,
+    String? direction,
+    List<LetterCell>? cells,
+    bool? hidden,
+  }) {
+    return Lane(
+      id: id ?? this.id,
+      color: color ?? this.color,
+      arrow: arrow ?? this.arrow,
+      direction: direction ?? this.direction,
+      cells: cells ?? this.cells,
+      hidden: hidden ?? this.hidden,
+    );
+  }
 
   /// Check if a coordinate belongs to this lane's arrow or cells
   bool containsPos(int px, int py) {
@@ -133,6 +184,7 @@ class Lane {
       color: json['color'] ?? 0,
       arrow: PointPos.fromJson(json['arrow'] as Map<String, dynamic>),
       direction: json['direction'] ?? 'up',
+      hidden: json['hidden'] == true,
       cells: (json['cells'] as List<dynamic>? ?? [])
           .map((e) => LetterCell.fromJson(e as Map<String, dynamic>))
           .toList(),

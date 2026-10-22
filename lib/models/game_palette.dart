@@ -33,79 +33,103 @@ class GamePalette {
   static const Color crateBorder = Color(0xFF9C5A1E);
   static const Color crateText = Color(0xFF261912);
 
-  // Lane color definitions (indexed by level color id)
+  // Lane color definitions (indexed 0..15 matching Unity WordOutBoardSpriteAtlas)
   static final Map<int, LaneColorStyle> _styles = {
+    0: const LaneColorStyle(
+      primary: Color(0xFFF8A6F8), // Bubblegum Pink
+      dark: Color(0xFFC84EC8),
+      light: Color(0xFFF8A6F8),
+      textColor: Color(0xFF4A104A),
+    ),
     1: const LaneColorStyle(
-      primary: Color(0xFFF472B6), // Pink
-      dark: Color(0xFFDB2777),
-      light: Color(0xFFFBCFE8),
-      textColor: Color(0xFF831843),
+      primary: Color(0xFFFABAE6), // Light Pastel Pink
+      dark: Color(0xFFD660B0),
+      light: Color(0xFFFABAE6),
+      textColor: Color(0xFF4A1035),
     ),
     2: const LaneColorStyle(
-      primary: Color(0xFFFB7185), // Rose
-      dark: Color(0xFFE11D48),
-      light: Color(0xFFFECDD3),
-      textColor: Color(0xFF881337),
+      primary: Color(0xFFC2A5EE), // Lavender Purple
+      dark: Color(0xFF8E5DD4),
+      light: Color(0xFFC2A5EE),
+      textColor: Color(0xFF2E1556),
     ),
     3: const LaneColorStyle(
-      primary: Color(0xFFFBBF24), // Yellow
-      dark: Color(0xFFD97706),
-      light: Color(0xFFFDE68A),
-      textColor: Color(0xFF78350F),
+      primary: Color(0xFFF7C563), // Golden Yellow
+      dark: Color(0xFFD99516),
+      light: Color(0xFFF7C563),
+      textColor: Color(0xFF4A2A04),
     ),
     4: const LaneColorStyle(
-      primary: Color(0xFFFB923C), // Orange
-      dark: Color(0xFFEA580C),
-      light: Color(0xFFFED7AA),
-      textColor: Color(0xFF7C2D12),
+      primary: Color(0xFFFDA774), // Warm Orange
+      dark: Color(0xFFE26824),
+      light: Color(0xFFFDA774),
+      textColor: Color(0xFF4A1E04),
     ),
     5: const LaneColorStyle(
-      primary: Color(0xFF4ADE80), // Green
-      dark: Color(0xFF16A34A),
-      light: Color(0xFFBBF7D0),
-      textColor: Color(0xFF14532D),
+      primary: Color(0xFF97E18A), // Apple Green
+      dark: Color(0xFF56B546),
+      light: Color(0xFF97E18A),
+      textColor: Color(0xFF163E10),
     ),
     6: const LaneColorStyle(
-      primary: Color(0xFFC084FC), // Lavender
-      dark: Color(0xFF9333EA),
-      light: Color(0xFFE9D5FF),
-      textColor: Color(0xFF581C87),
+      primary: Color(0xFFF2819F), // Magenta / Rose
+      dark: Color(0xFFCA2F58),
+      light: Color(0xFFF2819F),
+      textColor: Color(0xFF4E0C1F),
     ),
     7: const LaneColorStyle(
-      primary: Color(0xFFA855F7), // Purple
-      dark: Color(0xFF7E22CE),
-      light: Color(0xFFE9D5FF),
-      textColor: Color(0xFF3B0764),
+      primary: Color(0xFFFCBF93), // Warm Peach
+      dark: Color(0xFFDD8546),
+      light: Color(0xFFFCBF93),
+      textColor: Color(0xFF4E2205),
     ),
     8: const LaneColorStyle(
-      primary: Color(0xFF38BDF8), // Blue
-      dark: Color(0xFF0284C7),
-      light: Color(0xFFBAE6FD),
-      textColor: Color(0xFF0C4A6E),
+      primary: Color(0xFF99CEF7), // Sky Blue
+      dark: Color(0xFF4E9CE6),
+      light: Color(0xFF99CEF7),
+      textColor: Color(0xFF0C2E52),
+    ),
+    9: const LaneColorStyle(
+      primary: Color(0xFFA382F9), // Violet Purple
+      dark: Color(0xFF6E40DE),
+      light: Color(0xFFA382F9),
+      textColor: Color(0xFF220A58),
     ),
     10: const LaneColorStyle(
-      primary: Color(0xFF34D399), // Mint Green
-      dark: Color(0xFF059669),
-      light: Color(0xFFA7F3D0),
-      textColor: Color(0xFF064E3B),
+      primary: Color(0xFFBEEE95), // Light Lime Green
+      dark: Color(0xFF88C951),
+      light: Color(0xFFBEEE95),
+      textColor: Color(0xFF234407),
     ),
     11: const LaneColorStyle(
-      primary: Color(0xFF2DD4BF), // Teal
-      dark: Color(0xFF0D9488),
-      light: Color(0xFF99F6E4),
-      textColor: Color(0xFF134E4A),
+      primary: Color(0xFF8CEFC4), // Mint / Seafoam
+      dark: Color(0xFF44C88E),
+      light: Color(0xFF8CEFC4),
+      textColor: Color(0xFF0C442A),
+    ),
+    12: const LaneColorStyle(
+      primary: Color(0xFF9AE9F1), // Cyan / Aqua
+      dark: Color(0xFF49BCC9),
+      light: Color(0xFF9AE9F1),
+      textColor: Color(0xFF0B3A40),
     ),
     13: const LaneColorStyle(
-      primary: Color(0xFF818CF8), // Indigo
-      dark: Color(0xFF4F46E5),
-      light: Color(0xFFC7D2FE),
-      textColor: Color(0xFF1E1B4B),
+      primary: Color(0xFFABB5FC), // Slate / Periwinkle
+      dark: Color(0xFF697CE8),
+      light: Color(0xFFABB5FC),
+      textColor: Color(0xFF141F61),
+    ),
+    14: const LaneColorStyle(
+      primary: Color(0xFFFB857A), // Red Coral
+      dark: Color(0xFFD63C2F),
+      light: Color(0xFFFB857A),
+      textColor: Color(0xFF4E0E08),
     ),
     15: const LaneColorStyle(
-      primary: Color(0xFFE07A5F), // Terracotta / Peach
-      dark: Color(0xFFC05238),
-      light: Color(0xFFFFD4C7),
-      textColor: Color(0xFF4A180B),
+      primary: Color(0xFFCF7975), // Terracotta / Rust
+      dark: Color(0xFFA54540),
+      light: Color(0xFFCF7975),
+      textColor: Color(0xFF441210),
     ),
   };
 

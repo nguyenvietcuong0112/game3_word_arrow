@@ -48,6 +48,7 @@ class _GameBoardState extends State<GameBoard> {
   Widget build(BuildContext context) {
     return ClipRect(
       child: GameWidget(
+        key: ObjectKey(_game),
         game: _game,
       ),
     );

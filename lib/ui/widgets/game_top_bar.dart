@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'game_button.dart';
 
 class GameTopBar extends StatelessWidget {
   final int levelNumber;
@@ -17,7 +18,7 @@ class GameTopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(14.0, 16.0, 14.0, 8.0),
+      padding: const EdgeInsets.fromLTRB(14.0, 14.0, 14.0, 6.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -32,66 +33,57 @@ class GameTopBar extends StatelessWidget {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Color(0xFF08489E),
-                    Color(0xFF012468),
+                    Color(0xFF0A4DA4),
+                    Color(0xFF02266C),
                   ],
                 ),
                 borderRadius: BorderRadius.circular(24),
                 border: Border.all(
                   color: const Color(0xFF00B4FF),
-                  width: 2.2,
+                  width: 2.0,
                 ),
                 boxShadow: const [
                   BoxShadow(
-                    color: Color(0xFF01163C),
-                    offset: Offset(0, 2.5),
-                    blurRadius: 0,
-                    spreadRadius: 1.2,
+                    color: Color(0xCC01163C),
+                    offset: Offset(0, 2.0),
+                    blurRadius: 1.5,
+                    spreadRadius: 0.5,
                   ),
                 ],
               ),
-              child: Text(
+              child: StrokedText(
                 'Level $levelNumber',
-                style: const TextStyle(
-                  fontFamily: 'Panteon',
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                  color: Colors.white,
-                  shadows: [
-                    Shadow(
-                      offset: Offset(0, 1.5),
-                      color: Color(0xFF01163C),
-                      blurRadius: 2,
-                    ),
-                  ],
-                ),
+                fontSize: 18,
+                fillColor: Colors.white,
+                strokeColor: const Color(0xFF011B47),
+                strokeWidth: 3.4,
               ),
             ),
           ),
 
           // Star Container
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Color(0xFF08489E),
-                  Color(0xFF012468),
+                  Color(0xFF0A4DA4),
+                  Color(0xFF02266C),
                 ],
               ),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
                 color: const Color(0xFF00B4FF),
-                width: 2.2,
+                width: 2.0,
               ),
               boxShadow: const [
                 BoxShadow(
-                  color: Color(0xFF01163C),
-                  offset: Offset(0, 2.5),
-                  blurRadius: 0,
-                  spreadRadius: 1.2,
+                  color: Color(0xCC01163C),
+                  offset: Offset(0, 2.0),
+                  blurRadius: 1.5,
+                  spreadRadius: 0.5,
                 ),
               ],
             ),
@@ -100,90 +92,89 @@ class GameTopBar extends StatelessWidget {
               children: List.generate(3, (index) {
                 final isLit = index < stars;
                 return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 2.5),
+                  padding: const EdgeInsets.symmetric(horizontal: 2.0),
                   child: Image.asset(
                     isLit
                         ? 'assets/images/gameplay/WordsArrowIngameGoldStar.png'
                         : 'assets/images/gameplay/WordsArrowIngameGreyStar.png',
-                    width: 28,
-                    height: 28,
+                    width: 26,
+                    height: 26,
                   ),
                 );
               }),
             ),
           ),
 
-          // Coin Container with Authentic GenericPuzzleCurrencyBG & CurrencyCoinIcon
+          // Coin Container matching authentic Unity top-right coin badge (coin_badge_real.png)
           SizedBox(
-            width: 112,
-            height: 42,
+            width: 118,
+            height: 44,
             child: Stack(
               alignment: Alignment.centerLeft,
               clipBehavior: Clip.none,
               children: [
-                // Authentic Background pill
+                // Recessed cream/peach capsule pill (slimmer than the coin icon so the coin overhangs top & bottom)
                 Positioned(
-                  left: 14,
+                  left: 18,
                   right: 0,
-                  top: 1,
-                  bottom: 1,
+                  top: 6.5,
+                  bottom: 6.5,
                   child: Container(
-                    padding: const EdgeInsets.only(left: 20, right: 8),
-                    decoration: const BoxDecoration(
-                      image: DecorationImage(
-                        image: AssetImage('assets/images/backgrounds/GenericPuzzleCurrencyBG_scaled.png'),
-                        centerSlice: Rect.fromLTRB(24, 8, 96, 38),
-                        fit: BoxFit.fill,
+                    padding: const EdgeInsets.only(left: 24, right: 10),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: const Color(0xFFD8AB8A),
+                        width: 1.5,
                       ),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      _formatCoins(coins),
-                      style: const TextStyle(
-                        fontFamily: 'Panteon',
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white,
-                        shadows: [
-                          Shadow(
-                            offset: Offset(0, 1.5),
-                            color: Color(0xFF381005),
-                            blurRadius: 1.5,
-                          ),
-                          Shadow(
-                            offset: Offset(1, 0),
-                            color: Color(0xFF381005),
-                            blurRadius: 1.5,
-                          ),
-                          Shadow(
-                            offset: Offset(-1, 0),
-                            color: Color(0xFF381005),
-                            blurRadius: 1.5,
-                          ),
+                      gradient: const LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        stops: [0.0, 0.18, 0.55, 1.0],
+                        colors: [
+                          Color(0xFFC5916E),
+                          Color(0xFFECCBB1),
+                          Color(0xFFF6DFC9),
+                          Color(0xFFFAE9D8),
                         ],
                       ),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x403E1604),
+                          offset: Offset(0, 1.5),
+                          blurRadius: 2.0,
+                        ),
+                      ],
+                    ),
+                    alignment: Alignment.center,
+                    child: StrokedText(
+                      _formatCoins(coins),
+                      fontSize: 16.5,
+                      fillColor: const Color(0xFFFFF9F0),
+                      strokeColor: const Color(0xFF470C10),
+                      strokeWidth: 3.4,
                     ),
                   ),
                 ),
                 // Authentic Coin Icon with Plus button
                 Positioned(
                   left: 0,
-                  top: 2,
+                  top: 0,
                   child: Stack(
                     clipBehavior: Clip.none,
                     children: [
                       Image.asset(
                         'assets/images/icons/CurrencyCoinIcon.png',
-                        width: 38,
-                        height: 38,
+                        width: 44,
+                        height: 44,
                       ),
                       Positioned(
-                        bottom: -1,
-                        right: -1,
+                        bottom: -2,
+                        right: -2,
                         child: Image.asset(
                           'assets/images/ui/PlusButton.png',
-                          width: 16,
-                          height: 16,
+                          width: 19,
+                          height: 19,
                         ),
                       ),
                     ],

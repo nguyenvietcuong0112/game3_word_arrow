@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/level_service.dart';
+import '../widgets/game_button.dart';
+import '../widgets/game_popup_dialog.dart';
 
 class LevelSelectDialog extends StatefulWidget {
   final int currentLevel;
@@ -37,165 +39,109 @@ class _LevelSelectDialogState extends State<LevelSelectDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 32),
+    return GamePopupDialog(
+      title: 'Select Level',
+      theme: PopupTheme.blue,
+      maxWidth: 376,
+      onClose: () => Navigator.pop(context),
+      contentPadding: const EdgeInsets.fromLTRB(18, 52, 18, 22),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 380, maxHeight: 600),
-        child: Stack(
-          clipBehavior: Clip.none,
-          alignment: Alignment.topCenter,
-          children: [
-            // Popup Frame
-            Container(
-              margin: const EdgeInsets.only(top: 28),
-              decoration: const BoxDecoration(
-                image: DecorationImage(
-                  image: AssetImage('assets/images/ui/SettingsPanel.png'),
-                  centerSlice: Rect.fromLTRB(60, 60, 220, 200),
-                  fit: BoxFit.fill,
-                ),
+        constraints: const BoxConstraints(maxHeight: 460),
+        child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: const BoxDecoration(
+            image: DecorationImage(
+              image: ExactAssetImage(
+                'assets/images/popups/PopupInInfoBG.png',
+                scale: 4.0,
               ),
-              padding: const EdgeInsets.fromLTRB(20, 44, 20, 26),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: GridView.builder(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 4,
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                    childAspectRatio: 0.9,
-                  ),
-                  itemCount: 200,
-                  itemBuilder: (context, index) {
-                    final levelNum = index + 1;
-                    final isCurrent = levelNum == widget.currentLevel;
-                    final stars = _levelStars[levelNum] ?? 0;
-
-                    return GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () {
-                        Navigator.pop(context);
-                        widget.onSelectLevel(levelNum);
-                      },
-                      child: Container(
-                        decoration: BoxDecoration(
-                          image: DecorationImage(
-                            image: AssetImage(
-                              isCurrent
-                                  ? 'assets/images/ui/GeneralOrangeButton.png'
-                                  : 'assets/images/ui/GeneralBlueButton.png',
-                            ),
-                            centerSlice: const Rect.fromLTRB(20, 20, 76, 76),
-                            fit: BoxFit.fill,
-                          ),
-                        ),
-                        alignment: Alignment.center,
-                        padding: const EdgeInsets.only(bottom: 4),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            '$levelNum',
-                            style: const TextStyle(
-                              fontFamily: 'Panteon',
-                              fontSize: 20,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.white,
-                              shadows: [
-                                Shadow(
-                                  offset: Offset(0, 1.5),
-                                  color: Colors.black45,
-                                  blurRadius: 2,
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          // Star indicators
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: List.generate(3, (starIdx) {
-                              final isEarned = starIdx < stars;
-                              return Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 1.0),
-                                child: Image.asset(
-                                  isEarned
-                                      ? 'assets/images/gameplay/WordsArrowIngameGoldStar.png'
-                                      : 'assets/images/gameplay/WordsArrowIngameGreyStar.png',
-                                  width: 11,
-                                  height: 11,
-                                ),
-                              );
-                            }),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
+              centerSlice: Rect.fromLTRB(
+                190 / 4.0,
+                190 / 4.0,
+                286 / 4.0,
+                286 / 4.0,
               ),
+              fit: BoxFit.fill,
             ),
           ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: GridView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 0.92,
+              ),
+              itemCount: 200,
+              itemBuilder: (context, index) {
+                final levelNum = index + 1;
+                final isCurrent = levelNum == widget.currentLevel;
+                final stars = _levelStars[levelNum] ?? 0;
 
-            // Top Title Banner
-            Positioned(
-              top: 0,
-              child: SizedBox(
-                width: 250,
-                height: 68,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Image.asset(
-                      'assets/images/popups/GeneralOrangePopupTitleBG.png',
-                      width: 250,
-                      height: 68,
-                      fit: BoxFit.fill,
-                    ),
-                    const Padding(
-                      padding: EdgeInsets.only(bottom: 6),
-                      child: Text(
-                        'SELECT LEVEL',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontFamily: 'Panteon',
-                          fontSize: 21,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.white,
-                          shadows: [
-                            Shadow(
-                              offset: Offset(0, 2),
-                              color: Color(0xFF7C2D12),
-                              blurRadius: 2,
-                            ),
-                          ],
+                return GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {
+                    Navigator.pop(context);
+                    widget.onSelectLevel(levelNum);
+                  },
+                  child: Container(
+                    decoration: BoxDecoration(
+                      image: DecorationImage(
+                        image: ExactAssetImage(
+                          isCurrent
+                              ? 'assets/images/ui/GeneralOrangeButton.png'
+                              : (stars > 0
+                                  ? 'assets/images/ui/GeneralGreenButton.png'
+                                  : 'assets/images/ui/GeneralBlueButton.png'),
+                          scale: 2.0,
                         ),
+                        centerSlice: const Rect.fromLTRB(15, 15, 33, 33),
+                        fit: BoxFit.fill,
                       ),
                     ),
-                  ],
-                ),
-              ),
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        StrokedText(
+                          '$levelNum',
+                          fontSize: 19,
+                          fillColor: Colors.white,
+                          strokeColor: isCurrent
+                              ? const Color(0xFF6E2508)
+                              : (stars > 0
+                                  ? const Color(0xFF0E470E)
+                                  : const Color(0xFF0A3A66)),
+                          strokeWidth: 3.2,
+                        ),
+                        const SizedBox(height: 2),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: List.generate(3, (starIdx) {
+                            final isEarned = starIdx < stars;
+                            return Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 1.0),
+                              child: Image.asset(
+                                isEarned
+                                    ? 'assets/images/gameplay/WordsArrowIngameGoldStar.png'
+                                    : 'assets/images/gameplay/WordsArrowIngameGreyStar.png',
+                                width: 11,
+                                height: 11,
+                              ),
+                            );
+                          }),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
             ),
-
-            // Close Button
-            Positioned(
-              top: 14,
-              right: 6,
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () => Navigator.pop(context),
-                child: Image.asset(
-                  'assets/images/ui/BannerCloseButton.png',
-                  width: 44,
-                  height: 40,
-                  fit: BoxFit.contain,
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

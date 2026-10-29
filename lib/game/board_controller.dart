@@ -2,14 +2,13 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import '../models/level_model.dart';
 import '../services/audio_service.dart';
-import '../services/level_service.dart';
 
 enum GameStatus { playing, won, lost }
 
 class BoardController extends ChangeNotifier {
   final LevelModel level;
+  final int levelNumber;
   final AudioService _audio = AudioService();
-  final LevelService _levelService = LevelService();
 
   late int movesLeft;
   int stars = 3;
@@ -20,13 +19,12 @@ class BoardController extends ChangeNotifier {
 
   // Dragging state
   Lane? draggedLane;
-  List<int> highlightedCellIndices = []; // indices into draggedLane.cells
+  List<int> highlightedCellIndices = [];
   bool hasArrowHighlighted = false;
-  List<Offset> dragPathPoints = []; // screen coordinates for trail drawing
+  List<Offset> dragPathPoints = [];
 
   // Animating lanes
-  // laneId -> slide offset vector (normalized direction * progress * distance)
-  final Map<String, double> exitingLaneProgress = {}; // 0.0 -> 1.0
+  final Map<String, double> exitingLaneProgress = {};
   final Map<String, Offset> exitingLaneDirection = {};
   final Set<String> bouncingLaneIds = {};
 
@@ -36,10 +34,18 @@ class BoardController extends ChangeNotifier {
   // Hint booster
   String? hintedLaneId;
 
-  // Hammer booster
+  // Hammer booster & Hammer tutorial step 2 state
   bool isHammerActive = false;
+  bool isHammerTutorialStep = false;
+  VoidCallback? onHammerConsumedOnBoard;
 
-  BoardController({required this.level}) {
+  BoardController({
+    required this.level,
+    int? levelNumber,
+  }) : levelNumber = levelNumber ??
+            (level.levelIndex > 0
+                ? level.levelIndex
+                : (level.settings.levelNumber > 0 ? level.settings.levelNumber : 1)) {
     movesLeft = level.settings.moveLimit > 0 ? level.settings.moveLimit : 30;
     activeLanes = List.from(level.lanes);
     activeCrates = level.crates.map((c) => c.clone()).toList();
@@ -108,204 +114,20 @@ class BoardController extends ChangeNotifier {
     return true;
   }
 
-  /// Start dragging interaction
-  void onTouchDown(Offset localPos, double cellSize) {
-    if (status != GameStatus.playing) return;
-
-    final gx = (localPos.dx / cellSize).floor();
-    final gy = (localPos.dy / cellSize).floor();
-
-    if (isHammerActive) {
-      _applyHammer(gx, gy);
-      return;
-    }
-
-    // Find lane that contains this grid cell
-    for (final lane in activeLanes) {
-      if (lane.arrow.x == gx && lane.arrow.y == gy) {
-        // Started on arrow
-        draggedLane = lane;
-        highlightedCellIndices = [];
-        hasArrowHighlighted = true;
-        dragPathPoints = [localPos];
-        _audio.playTileSelect();
-        notifyListeners();
-        return;
-      }
-      for (int i = 0; i < lane.cells.length; i++) {
-        if (lane.cells[i].x == gx && lane.cells[i].y == gy) {
-          draggedLane = lane;
-          highlightedCellIndices = [i];
-          hasArrowHighlighted = true;
-          dragPathPoints = [localPos];
-          _audio.playTileSelect();
-          notifyListeners();
-          return;
-        }
-      }
-    }
-  }
-
-  /// Drag hover over cell with segment collision detection
-  void onTouchMove(Offset localPos, double cellSize) {
-    if (draggedLane == null || status != GameStatus.playing) return;
-
-    final prevPos = dragPathPoints.isNotEmpty ? dragPathPoints.last : localPos;
-    dragPathPoints.add(localPos);
-
-    final lane = draggedLane!;
-
-    while (highlightedCellIndices.length < lane.cells.length) {
-      final nextIdx = highlightedCellIndices.length;
-      final expectedCell = lane.cells[nextIdx];
-      final cellCenter = Offset(
-        expectedCell.x * cellSize + cellSize / 2,
-        expectedCell.y * cellSize + cellSize / 2,
-      );
-
-      final dist = _distToSegment(cellCenter, prevPos, localPos);
-      if (dist < cellSize * 0.58) {
-        highlightedCellIndices.add(nextIdx);
-        _audio.playTileSelect();
-      } else {
-        break;
-      }
-    }
-
-    notifyListeners();
-  }
-
-  double _distToSegment(Offset p, Offset a, Offset b) {
-    final ab = b - a;
-    final lengthSquared = ab.dx * ab.dx + ab.dy * ab.dy;
-    if (lengthSquared == 0) return (p - a).distance;
-    final t = (((p.dx - a.dx) * ab.dx + (p.dy - a.dy) * ab.dy) / lengthSquared).clamp(0.0, 1.0);
-    final projection = Offset(a.dx + t * ab.dx, a.dy + t * ab.dy);
-    return (p - projection).distance;
-  }
-
-  /// Touch up / release
-  void onTouchUp() {
-    if (draggedLane != null) {
-      final lane = draggedLane!;
-      _triggerLaneAction(lane);
-      _resetDrag();
-    }
-  }
-
-  void _resetDrag() {
-    draggedLane = null;
-    highlightedCellIndices = [];
-    hasArrowHighlighted = false;
-    dragPathPoints = [];
-    notifyListeners();
-  }
-
-  /// Process lane release / completion
-  void _triggerLaneAction(Lane lane) {
-    if (isPathClear(lane)) {
-      _executeLaneClear(lane);
-    } else {
-      _executeLaneBlocked(lane);
-    }
-  }
-
-  /// Lane successfully clears!
-  Future<void> _executeLaneClear(Lane lane) async {
-    movesLeft--;
-    hintedLaneId = null;
-
-    Offset exitDir = Offset.zero;
-    switch (lane.direction.toLowerCase()) {
-      case 'up':
-        exitDir = const Offset(0, -1);
-        break;
-      case 'down':
-        exitDir = const Offset(0, 1);
-        break;
-      case 'left':
-        exitDir = const Offset(-1, 0);
-        break;
-      case 'right':
-        exitDir = const Offset(1, 0);
-        break;
-    }
-
-    exitingLaneDirection[lane.id] = exitDir;
-    exitingLaneProgress[lane.id] = 0.0;
-    _audio.playLaneClear();
-    notifyListeners();
-
-    // Smooth exit slide animation
-    const steps = 15;
-    for (int i = 1; i <= steps; i++) {
-      await Future.delayed(const Duration(milliseconds: 20));
-      exitingLaneProgress[lane.id] = Curves.easeIn.transform(i / steps);
-      notifyListeners();
-    }
-
-    // Remove lane from active board
-    activeLanes.removeWhere((l) => l.id == lane.id);
-    exitingLaneProgress.remove(lane.id);
-    exitingLaneDirection.remove(lane.id);
-
-    // Damage crates
-    bool crateDamaged = false;
-    for (final crate in activeCrates) {
-      if (crate.threshold > 0) {
-        crate.threshold--;
-        crateDamaged = true;
-      }
-    }
-    if (crateDamaged) {
-      _audio.playCrateHit();
-      // Remove broken crates
-      activeCrates.removeWhere((c) => c.threshold <= 0);
-    }
-
-    // Check Win condition
-    if (activeLanes.isEmpty) {
-      status = GameStatus.won;
-      _audio.playWin();
-      await _levelService.saveLevelStars(level.levelIndex, stars);
-      await _levelService.addCoins(50);
-      await _levelService.unlockNextLevel();
-    } else if (movesLeft <= 0) {
-      status = GameStatus.lost;
-      _audio.playLose();
-    }
-
-    notifyListeners();
-  }
-
-  /// Lane is blocked: bounce, deduct star, flash red
-  Future<void> _executeLaneBlocked(Lane lane) async {
-    bouncingLaneIds.add(lane.id);
-    isRedFlashing = true;
-    stars = max(0, stars - 1);
-    _audio.playBlockedBounce();
-    notifyListeners();
-
-    // Shake / bounce duration
-    await Future.delayed(const Duration(milliseconds: 400));
-    bouncingLaneIds.remove(lane.id);
-    isRedFlashing = false;
-
-    // Check lose condition
-    if (stars <= 0) {
-      status = GameStatus.lost;
-      _audio.playLose();
-    }
-
-    notifyListeners();
-  }
-
   /// Booster: Hint
   bool useHintBooster() {
     if (status != GameStatus.playing) return false;
-    // Find first clear lane
     for (final lane in activeLanes) {
       if (isPathClear(lane)) {
+        hintedLaneId = lane.id;
+        _audio.playReward();
+        notifyListeners();
+        return true;
+      }
+    }
+    // Fallback: if all clear lanes are locked/blocked, highlight first unlocked lane
+    for (final lane in activeLanes) {
+      if (!lane.isLocked) {
         hintedLaneId = lane.id;
         _audio.playReward();
         notifyListeners();
@@ -316,61 +138,45 @@ class BoardController extends ChangeNotifier {
   }
 
   /// Booster: Hammer
-  void toggleHammerBooster() {
-    isHammerActive = !isHammerActive;
+  void armHammerBooster({bool isTutorial = false}) {
+    isHammerActive = true;
+    isHammerTutorialStep = isTutorial;
     _audio.playButtonClick();
     notifyListeners();
   }
 
-  void _applyHammer(int gx, int gy) {
+  void cancelHammerBooster() {
+    if (isHammerTutorialStep) return; // Keep armed during tutorial step 2
     isHammerActive = false;
+    _audio.playButtonClick();
+    notifyListeners();
+  }
 
-    // Smashes crate or removes lane
-    final crateIndex = activeCrates.indexWhere((c) => c.x == gx && c.y == gy);
-    if (crateIndex != -1) {
-      activeCrates.removeAt(crateIndex);
-      _audio.playCrateHit();
-      notifyListeners();
-      return;
-    }
-
-    final laneIndex = activeLanes.indexWhere((l) => l.containsPos(gx, gy));
-    if (laneIndex != -1) {
-      final lane = activeLanes[laneIndex];
-      _executeLaneClear(lane);
+  void toggleHammerBooster() {
+    if (isHammerActive) {
+      cancelHammerBooster();
+    } else {
+      armHammerBooster();
     }
   }
 
-  /// Booster: Rocket / Firework callback delegate
+  /// Booster: Rocket / Firework callback delegate (handled by WordArrowFlameGame)
   bool Function()? onRocketBoosterTriggered;
 
-  /// Booster: Rocket / Firework (Clears first clear or removes an obstacle crate)
   bool useRocketBooster() {
     if (status != GameStatus.playing) return false;
     if (onRocketBoosterTriggered != null) {
       return onRocketBoosterTriggered!();
     }
-
-    if (activeCrates.isNotEmpty) {
-      activeCrates.removeAt(0);
-      _audio.playLaneClear();
-      notifyListeners();
-      return true;
-    }
-
-    if (activeLanes.isNotEmpty) {
-      final lane = activeLanes.first;
-      _executeLaneClear(lane);
-      return true;
-    }
-
     return false;
   }
 
-  /// Revive when out of moves or stars
-  void revive() {
-    movesLeft += 10;
-    stars = 3;
+  /// Revive when out of stars (RewardedReviveLives = 1, PurchaseReviveLives = 3)
+  void revive({int addStars = 3}) {
+    if (movesLeft <= 0) {
+      movesLeft += 10;
+    }
+    stars = (max(0, stars) + addStars).clamp(1, 3);
     status = GameStatus.playing;
     notifyListeners();
   }

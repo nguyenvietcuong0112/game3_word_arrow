@@ -1,306 +1,352 @@
 import 'package:flutter/material.dart';
 import '../widgets/game_button.dart';
+import '../widgets/game_popup_dialog.dart';
 
 class VictoryDialog extends StatefulWidget {
   final int levelNumber;
+  final int difficulty;
   final int stars;
-  final int coinsEarned;
-  final VoidCallback onNextLevel;
-  final VoidCallback onReplay;
+  final int baseCoins;
+  final int adCoins;
+  final VoidCallback onContinue;
+  final VoidCallback onClaimAdMultiplier;
 
   const VictoryDialog({
     super.key,
     required this.levelNumber,
+    this.difficulty = 1,
     required this.stars,
-    required this.coinsEarned,
-    required this.onNextLevel,
-    required this.onReplay,
+    this.baseCoins = 10,
+    this.adCoins = 50,
+    required this.onContinue,
+    required this.onClaimAdMultiplier,
   });
 
   @override
   State<VictoryDialog> createState() => _VictoryDialogState();
 }
 
-class _VictoryDialogState extends State<VictoryDialog> with SingleTickerProviderStateMixin {
+class _VictoryDialogState extends State<VictoryDialog>
+    with TickerProviderStateMixin {
+  late final AnimationController _sunburstController;
   late final AnimationController _sparkleController;
+  late final AnimationController _popController;
+  late final Animation<double> _popScale;
 
   @override
   void initState() {
     super.initState();
+    _sunburstController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 14),
+    )..repeat();
+
     _sparkleController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 1300),
     )..repeat(reverse: true);
+
+    _popController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 240),
+    )..forward();
+    _popScale = CurvedAnimation(
+      parent: _popController,
+      curve: Curves.easeOutBack,
+    );
   }
 
   @override
   void dispose() {
+    _sunburstController.dispose();
     _sparkleController.dispose();
+    _popController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 350),
-        child: Stack(
-          clipBehavior: Clip.none,
-          alignment: Alignment.topCenter,
+    final theme = GamePopupDialog.themeFromDifficulty(widget.difficulty);
+    final bool isEarlyTutorialLevel = widget.levelNumber <= 2;
+
+    Color textStroke;
+    String shineAsset;
+    switch (theme) {
+      case PopupTheme.blue:
+        textStroke = const Color(0xFF06203A);
+        shineAsset = 'assets/images/vfx/BluePopupShine.png';
+        break;
+      case PopupTheme.hard:
+        textStroke = const Color(0xFF2B0747);
+        shineAsset = 'assets/images/vfx/PurplePopupShine.png';
+        break;
+      case PopupTheme.veryHard:
+        textStroke = const Color(0xFF4B0610);
+        shineAsset = 'assets/images/vfx/RedPopupShine.png';
+        break;
+    }
+
+    return ScaleTransition(
+      scale: _popScale,
+      child: GamePopupDialog(
+        title: 'Level ${widget.levelNumber}',
+        theme: theme,
+        maxWidth: 356,
+        onClose: isEarlyTutorialLevel ? null : widget.onContinue,
+        contentPadding: EdgeInsets.fromLTRB(
+          18,
+          widget.difficulty >= 2 ? 68 : 50,
+          18,
+          24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Authentic 9-patch Unity Blue Frame
-            Container(
-              margin: const EdgeInsets.only(top: 36),
-              width: double.infinity,
-              decoration: const BoxDecoration(
-                image: DecorationImage(
-                  image: AssetImage('assets/images/popups/GeneralBluePopup.png'),
-                  centerSlice: Rect.fromLTRB(160, 160, 520, 444),
-                  fit: BoxFit.fill,
-                ),
-              ),
-              padding: const EdgeInsets.fromLTRB(24, 52, 24, 28),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+            // Title: "PERFECT!"
+            StrokedText(
+              'PERFECT!',
+              fontSize: 42,
+              fillColor: const Color(0xFFFFD829),
+              strokeColor: textStroke,
+              strokeWidth: 5.5,
+              letterSpacing: 1.1,
+            ),
+            const SizedBox(height: 2),
+
+            // Subtitle: "Rewards:"
+            StrokedText(
+              'Rewards:',
+              fontSize: 22,
+              fillColor: Colors.white,
+              strokeColor: textStroke,
+              strokeWidth: 3.8,
+            ),
+            const SizedBox(height: 6),
+
+            // Center 3D Coin Stack with Rotating Sunburst & Twinkling Star Sparkles
+            SizedBox(
+              width: 260,
+              height: 184,
+              child: Stack(
+                alignment: Alignment.center,
+                clipBehavior: Clip.none,
                 children: [
-                  // Title: "PERFECT!"
-                  const Text(
-                    'PERFECT!',
-                    style: TextStyle(
-                      fontFamily: 'Panteon',
-                      fontSize: 44,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.5,
-                      color: Color(0xFFFFD530),
-                      shadows: [
-                        Shadow(
-                          offset: Offset(0, 3.5),
-                          color: Color(0xFF002A5A),
-                          blurRadius: 2,
-                        ),
-                        Shadow(
-                          offset: Offset(0, 1.5),
-                          color: Color(0xFFFFF7A0),
-                          blurRadius: 1,
-                        ),
+                  // Soft Theme Background Glow
+                  ShaderMask(
+                    shaderCallback: (bounds) => const RadialGradient(
+                      colors: [
+                        Colors.white,
+                        Color(0xAAFFFFFF),
+                        Colors.transparent,
                       ],
+                      stops: [0.0, 0.55, 0.92],
+                    ).createShader(bounds),
+                    blendMode: BlendMode.dstIn,
+                    child: Opacity(
+                      opacity: 0.72,
+                      child: Image.asset(
+                        shineAsset,
+                        width: 236,
+                        height: 236,
+                        fit: BoxFit.contain,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 2),
 
-                  // Subtitle: "Rewards:"
-                  const Text(
-                    'Rewards:',
-                    style: TextStyle(
-                      fontFamily: 'Panteon',
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white,
-                      shadows: [
-                        Shadow(
-                          offset: Offset(0, 2),
-                          color: Color(0xFF002A5A),
-                          blurRadius: 2,
-                        ),
-                      ],
+                  // Authentic Rotating Sunburst Rays (true alpha PNG)
+                  RotationTransition(
+                    turns: _sunburstController,
+                    child: Opacity(
+                      opacity: 0.65,
+                      child: Image.asset(
+                        'assets/images/ui/dl_general_sunburst.png',
+                        width: 226,
+                        height: 226,
+                        fit: BoxFit.contain,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 12),
 
-                  // Center 3D Coin Stack with Soft Cyan Shine & Sparkles
-                  SizedBox(
-                    width: 260,
-                    height: 180,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      clipBehavior: Clip.none,
-                      children: [
-                        // Soft Cyan Background Glow
-                        Image.asset(
-                          'assets/images/vfx/BluePopupShine.png',
-                          width: 260,
-                          height: 260,
-                          fit: BoxFit.contain,
-                        ),
+                  // Authentic 3D Coin Stack Graphic
+                  Image.asset(
+                    'assets/images/popups/PopupRewardsImage.png',
+                    width: 226,
+                    height: 164,
+                    fit: BoxFit.contain,
+                  ),
 
-                        // Authentic 3D Coin Stack Graphic
-                        Image.asset(
-                          'assets/images/popups/PopupRewardsImage.png',
-                          width: 235,
-                          height: 172,
-                          fit: BoxFit.contain,
+                  // Sparkle 1 (Top Center 4-point star)
+                  Positioned(
+                    top: 22,
+                    left: 112,
+                    child: FadeTransition(
+                      opacity: _sparkleController,
+                      child: ScaleTransition(
+                        scale: Tween<double>(begin: 0.65, end: 1.15)
+                            .animate(_sparkleController),
+                        child: Image.asset(
+                          'assets/images/vfx/shop_legendary_shine.png',
+                          width: 26,
+                          height: 26,
                         ),
-
-                        // Sparkle 1 (Top Center)
-                        Positioned(
-                          top: 22,
-                          left: 110,
-                          child: FadeTransition(
-                            opacity: _sparkleController,
-                            child: Image.asset(
-                              'assets/images/vfx/flare01.png',
-                              width: 24,
-                              height: 24,
-                            ),
-                          ),
-                        ),
-
-                        // Sparkle 2 (Left Coin)
-                        Positioned(
-                          bottom: 60,
-                          left: 28,
-                          child: FadeTransition(
-                            opacity: ReverseAnimation(_sparkleController),
-                            child: Image.asset(
-                              'assets/images/vfx/flare01.png',
-                              width: 20,
-                              height: 20,
-                            ),
-                          ),
-                        ),
-
-                        // Sparkle 3 (Right Coin)
-                        Positioned(
-                          top: 48,
-                          right: 68,
-                          child: FadeTransition(
-                            opacity: _sparkleController,
-                            child: Image.asset(
-                              'assets/images/vfx/flare01.png',
-                              width: 22,
-                              height: 22,
-                            ),
-                          ),
-                        ),
-
-                        // Reward Number Overlay (bottom right of coin pile)
-                        Positioned(
-                          bottom: 12,
-                          right: 28,
-                          child: Text(
-                            '+${widget.coinsEarned}',
-                            style: const TextStyle(
-                              fontFamily: 'Panteon',
-                              fontSize: 34,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.white,
-                              shadows: [
-                                Shadow(
-                                  offset: Offset(0, 3),
-                                  color: Color(0xFF1B1B1B),
-                                  blurRadius: 4,
-                                ),
-                                Shadow(
-                                  offset: Offset(2, 0),
-                                  color: Color(0xFF1B1B1B),
-                                  blurRadius: 3,
-                                ),
-                                Shadow(
-                                  offset: Offset(-2, 0),
-                                  color: Color(0xFF1B1B1B),
-                                  blurRadius: 3,
-                                ),
-                                Shadow(
-                                  offset: Offset(0, -2),
-                                  color: Color(0xFF1B1B1B),
-                                  blurRadius: 3,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 22),
 
-                  // Continue Action Button (Wide Green 3D Button)
-                  SizedBox(
-                    width: 230,
-                    height: 66,
-                    child: GameButton(
-                      text: 'Continue',
-                      color: GameButtonColor.green,
-                      height: 66,
-                      fontSize: 24,
-                      onTap: widget.onNextLevel,
+                  // Sparkle 2 (Left Coin 4-point star)
+                  Positioned(
+                    bottom: 56,
+                    left: 30,
+                    child: FadeTransition(
+                      opacity: ReverseAnimation(_sparkleController),
+                      child: ScaleTransition(
+                        scale: Tween<double>(begin: 0.65, end: 1.1)
+                            .animate(ReverseAnimation(_sparkleController)),
+                        child: Image.asset(
+                          'assets/images/vfx/shop_legendary_shine.png',
+                          width: 22,
+                          height: 22,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Sparkle 3 (Right Coin 4-point star)
+                  Positioned(
+                    top: 46,
+                    right: 62,
+                    child: FadeTransition(
+                      opacity: _sparkleController,
+                      child: ScaleTransition(
+                        scale: Tween<double>(begin: 0.7, end: 1.15)
+                            .animate(_sparkleController),
+                        child: Image.asset(
+                          'assets/images/vfx/shop_legendary_shine.png',
+                          width: 24,
+                          height: 24,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Base Reward Number Overlay (bottom right of coin pile)
+                  Positioned(
+                    bottom: 14,
+                    right: 36,
+                    child: StrokedText(
+                      '${widget.baseCoins}',
+                      fontSize: 36,
+                      fillColor: Colors.white,
+                      strokeColor: textStroke,
+                      strokeWidth: 5.2,
                     ),
                   ),
                 ],
               ),
             ),
+            const SizedBox(height: 14),
 
-            // Top Tab Banner: "Level X"
-            Positioned(
-              top: 0,
-              child: SizedBox(
-                width: 270,
-                height: 80,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Image.asset(
-                      'assets/images/popups/BluePopupTitle.png',
-                      width: 270,
-                      height: 80,
-                      fit: BoxFit.fill,
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Text(
-                        'Level ${widget.levelNumber}',
-                        style: const TextStyle(
-                          fontFamily: 'Panteon',
-                          fontSize: 26,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.white,
-                          shadows: [
-                            Shadow(
-                              offset: Offset(0, 2.5),
-                              color: Color(0xFF003870),
-                              blurRadius: 2,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
+            // Bottom CTA Buttons:
+            // Levels 1-2: Single wide framed Green "Continue" button
+            // Levels >= 3: Side-by-side Green "Continue" & Purple "x5 (50)" Ad button
+            if (isEarlyTutorialLevel)
+              SizedBox(
+                width: 236,
+                child: GameButton(
+                  text: 'Continue',
+                  color: GameButtonColor.green,
+                  height: 58,
+                  fontSize: 25,
+                  showFrame: true,
+                  onTap: widget.onContinue,
                 ),
-              ),
-            ),
-
-            // Round Close Button (Top-Right)
-            Positioned(
-              top: 14,
-              right: 8,
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: widget.onNextLevel,
-                child: SizedBox(
-                  width: 46,
-                  height: 46,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Image.asset(
-                        'assets/images/popups/CloseButtonFrame.png',
-                        width: 46,
-                        height: 46,
-                      ),
-                      Image.asset(
-                        'assets/images/ui/BannerCloseButton.png',
-                        width: 34,
-                        height: 30,
-                        fit: BoxFit.contain,
-                      ),
-                    ],
+              )
+            else
+              Row(
+                children: [
+                  Expanded(
+                    child: GameButton(
+                      text: 'Continue',
+                      color: GameButtonColor.green,
+                      height: 58,
+                      fontSize: 20,
+                      showFrame: true,
+                      onTap: widget.onContinue,
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      alignment: Alignment.topCenter,
+                      children: [
+                        GameButton(
+                          color: GameButtonColor.purple,
+                          height: 58,
+                          showFrame: true,
+                          onTap: widget.onClaimAdMultiplier,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Image.asset(
+                                'assets/images/icons/AdsIcon.png',
+                                width: 24,
+                                height: 24,
+                              ),
+                              const SizedBox(width: 5),
+                              StrokedText(
+                                '${widget.adCoins}',
+                                fontSize: 22,
+                                strokeColor: const Color(0xFF3E0B4E),
+                                strokeWidth: 3.8,
+                              ),
+                              const SizedBox(width: 4),
+                              Image.asset(
+                                'assets/images/icons/CurrencyCoinIcon.png',
+                                width: 22,
+                                height: 22,
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Top "x5" Orange Sign Crown
+                        Positioned(
+                          top: -11,
+                          right: 10,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 9,
+                              vertical: 2,
+                            ),
+                            decoration: const BoxDecoration(
+                              image: DecorationImage(
+                                image: ExactAssetImage(
+                                  'assets/images/ui/OrangeTopSign.png',
+                                  scale: 3.0,
+                                ),
+                                centerSlice: Rect.fromLTRB(
+                                  80 / 3.0,
+                                  12 / 3.0,
+                                  144 / 3.0,
+                                  48 / 3.0,
+                                ),
+                                fit: BoxFit.fill,
+                              ),
+                            ),
+                            child: const StrokedText(
+                              'x5',
+                              fontSize: 13,
+                              strokeColor: Color(0xFF6B2206),
+                              strokeWidth: 2.8,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ),
           ],
         ),
       ),

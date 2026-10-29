@@ -28,6 +28,8 @@ class WordArrowFlameGame extends FlameGame with PanDetector {
   ui.Image? _crateImg;
   ui.Image? _cloudImg;
   ui.Image? _rocketImg;
+  ui.Image? _handImg;
+  ui.Image? _handGlowImg;
 
   final Map<int, ui.Image> _lockImages = {};
   final Map<int, ui.Image> _keyImages = {};
@@ -44,13 +46,33 @@ class WordArrowFlameGame extends FlameGame with PanDetector {
   final List<_FlyingKey> _flyingKeys = [];
   final List<_FlyingRocket> _flyingRockets = [];
   final List<_Particle> _particles = [];
+  final Map<String, TextPainter> _textPainterCache = {};
   final Random _rng = Random();
   double _hintPulseTime = 0.0;
 
-  // Dragging state
+  // Dragging & Word Preview Banner state
   Lane? _draggedLane;
-  Vector2? _dragStartPos;
   Vector2? _dragLastPos;
+  int _tracedCellCount = 0;
+
+  // Top Word Preview Banner state (persists briefly during release flash / collapse)
+  Lane? _bannerLane;
+  int _bannerTracedCount = 0;
+  double _bannerScaleX = 0.0;
+  bool _bannerClosing = false;
+  double _bannerFlashTimer = 0.0;
+
+  // Authentic Unity WordOutTutorialConfig & WordOutTutorialHand state
+  static const double _handPressSeconds = 0.250;
+  static const double _handCellSeconds = 0.220;
+  static const double _handReleaseSeconds = 0.180;
+  static const double _handLoopDelaySeconds = 0.150;
+  static const double _handPressScale = 0.880;
+
+  int _clearedWordsCount = 0;
+  double _idleSeconds = 0.0;
+  double _tutoHandCycleTime = 0.0;
+  String? _tutoCurrentTargetId;
 
   @override
   Color backgroundColor() => Colors.transparent;
@@ -71,6 +93,11 @@ class WordArrowFlameGame extends FlameGame with PanDetector {
 
     try {
       _rocketImg = await images.load('boosters/WordsArrowFireworkBooster.png');
+    } catch (_) {}
+
+    try {
+      _handImg = await images.load('icons/dl_general_hand_icon.png');
+      _handGlowImg = await images.load('vfx/dl__tuto_hand_bottom_glow_icon.png');
     } catch (_) {}
 
     // Locks & Keys (0: gold, 1: red, 2: blue, 3: green)
@@ -101,6 +128,17 @@ class WordArrowFlameGame extends FlameGame with PanDetector {
     _flyingRockets.clear();
     _particles.clear();
     _hintPulseTime = 0.0;
+    _draggedLane = null;
+    _tracedCellCount = 0;
+    _bannerLane = null;
+    _bannerTracedCount = 0;
+    _bannerScaleX = 0.0;
+    _bannerClosing = false;
+    _bannerFlashTimer = 0.0;
+    _clearedWordsCount = 0;
+    _idleSeconds = 0.0;
+    _tutoHandCycleTime = 0.0;
+    _tutoCurrentTargetId = null;
 
     for (final lane in controller.activeLanes) {
       _laneAnims[lane.id] = _LaneAnimState(lane: lane);
@@ -134,8 +172,9 @@ class WordArrowFlameGame extends FlameGame with PanDetector {
     final gridH = controller.level.grid.height;
     if (gridW <= 0 || gridH <= 0) return;
 
+    const topBannerReserve = 42.0;
     final availW = size.x * 0.94;
-    final availH = size.y * 0.94;
+    final availH = (size.y - topBannerReserve) * 0.94;
 
     final cellW = availW / gridW;
     final cellH = availH / gridH;
@@ -143,14 +182,50 @@ class WordArrowFlameGame extends FlameGame with PanDetector {
     _cellSize = min(cellW, cellH).clamp(36.0, 78.0);
     _tileSpacing = _cellSize * 0.08;
     _tileSize = _cellSize - _tileSpacing;
+    _textPainterCache.clear();
 
     final boardW = _cellSize * gridW;
     final boardH = _cellSize * gridH;
 
     _origin = Vector2(
       (size.x - boardW) / 2.0,
-      (size.y - boardH) / 2.0,
+      topBannerReserve + (size.y - topBannerReserve - boardH) / 2.0,
     );
+  }
+
+  TextPainter _getCachedTextPainter({
+    required String text,
+    required double fontSize,
+    required Color color,
+    double letterSpacing = 0.0,
+    List<Shadow>? shadows,
+    String shadowTag = '',
+  }) {
+    final key = '$text|${fontSize.toStringAsFixed(1)}|${color.toARGB32()}|$letterSpacing|$shadowTag';
+    final cached = _textPainterCache[key];
+    if (cached != null) return cached;
+
+    if (_textPainterCache.length > 512) {
+      _textPainterCache.clear();
+    }
+
+    final tp = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          fontFamily: 'Panteon',
+          fontSize: fontSize,
+          fontWeight: FontWeight.w900,
+          color: color,
+          letterSpacing: letterSpacing,
+          shadows: shadows,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    _textPainterCache[key] = tp;
+    return tp;
   }
 
   Vector2 _gridToPixel(int gx, int gy) {
@@ -170,10 +245,11 @@ class WordArrowFlameGame extends FlameGame with PanDetector {
   void update(double dt) {
     super.update(dt);
 
-    // Update lane animations
+    // Update lane animations (including smooth per-tile scale interpolation)
     final List<String> finishedExits = [];
     _laneAnims.forEach((id, anim) {
-      anim.update(dt);
+      final activeTraced = (_draggedLane?.id == id) ? _tracedCellCount : 0;
+      anim.update(dt, activeTracedCount: activeTraced);
       if (anim.isExited) {
         finishedExits.add(id);
       }
@@ -234,14 +310,18 @@ class WordArrowFlameGame extends FlameGame with PanDetector {
     for (int i = _flyingRockets.length - 1; i >= 0; i--) {
       final r = _flyingRockets[i];
       r.update(dt);
-      // Spawn trail smoke while flying
-      final trailPos = r.currentPosition;
-      _spawnSmokeParticle(trailPos, -r.direction * 30.0);
+      if (r.hasLaunched) {
+        final trailPos = r.currentPosition;
+        _spawnSmokeParticle(trailPos, -r.direction * 30.0);
+      }
       if (r.isFinished) {
         r.onImpact();
         _flyingRockets.removeAt(i);
       }
     }
+
+    // Update tutorial hand timers
+    _updateTutorialHand(dt);
 
     // Update particles
     for (int i = _particles.length - 1; i >= 0; i--) {
@@ -249,6 +329,25 @@ class WordArrowFlameGame extends FlameGame with PanDetector {
       p.update(dt);
       if (p.isDead) {
         _particles.removeAt(i);
+      }
+    }
+
+    // Update Top Word Preview Banner animation
+    if (_bannerLane != null) {
+      if (_bannerFlashTimer > 0.0) {
+        _bannerFlashTimer = max(0.0, _bannerFlashTimer - dt);
+        if (_bannerFlashTimer <= 0.0) {
+          _bannerClosing = true;
+        }
+      }
+      if (!_bannerClosing) {
+        _bannerScaleX = min(1.0, _bannerScaleX + dt * 12.0);
+      } else {
+        _bannerScaleX = max(0.0, _bannerScaleX - dt * 12.0);
+        if (_bannerScaleX <= 0.0) {
+          _bannerLane = null;
+          _bannerClosing = false;
+        }
       }
     }
   }
@@ -296,8 +395,10 @@ class WordArrowFlameGame extends FlameGame with PanDetector {
         );
         if (lane.id.isNotEmpty) {
           final anim = _laneAnims[lane.id];
-          final offset = anim != null ? anim.currentOffset : Vector2.zero();
-          final pixelPos = _gridToPixel(keyPos.x, keyPos.y) + offset;
+          final cellIdx = lane.cells.indexWhere((c) => c.pos == keyPos);
+          final pixelPos = (anim != null && cellIdx != -1)
+              ? anim.getCellPixelPos(cellIdx, _origin, _cellSize, _tileSpacing)
+              : _gridToPixel(keyPos.x, keyPos.y);
           _drawKeyBadge(canvas, pixelPos, lock.colorIdx);
         }
       }
@@ -310,13 +411,125 @@ class WordArrowFlameGame extends FlameGame with PanDetector {
 
     // 6b. Draw Flying Rockets
     for (final r in _flyingRockets) {
-      _drawFlyingRocket(canvas, r);
+      if (r.hasLaunched) {
+        _drawFlyingRocket(canvas, r);
+      }
     }
 
     // 7. Draw Particles (Smoke clouds, sparklers)
     for (final p in _particles) {
       p.render(canvas, _cloudImg);
     }
+
+    // 7b. Draw Board Tutorial Hand (Level 1-2 Swipe Tutorial & Hammer Step 2)
+    _drawTutorialHand(canvas);
+
+    // 8. Draw Top Word Preview Banner (when tracing a word)
+    _drawWordPreviewBanner(canvas);
+  }
+
+  void _drawWordPreviewBanner(Canvas canvas) {
+    final lane = _bannerLane;
+    if (lane == null || _bannerScaleX <= 0.01) return;
+
+    final n = lane.length;
+    if (n <= 0) return;
+
+    // For Hidden Arrows (lane.hidden == true), don't spoil total word length before letters are traced!
+    final int visibleSlots = lane.hidden
+        ? min(n, max(1, _bannerTracedCount + (_bannerTracedCount < n ? 1 : 0)))
+        : n;
+
+    final slotW = (_tileSize * 0.56).clamp(22.0, 32.0);
+    final padH = (_tileSize * 0.36).clamp(14.0, 22.0);
+    final bannerW = visibleSlots * slotW + padH * 2;
+    final bannerH = (_tileSize * 0.96).clamp(40.0, 52.0);
+
+    final centerX = size.x / 2.0;
+    final centerY = max(bannerH / 2 + 4.0, (_origin.y - 4.0) / 2.0);
+
+    final isFlashingRed = _bannerFlashTimer > 0.0;
+    final contentColor = isFlashingRed
+        ? const Color(0xFFED3B3B)
+        : const Color(0xFF261912);
+
+    canvas.save();
+    canvas.translate(centerX, centerY);
+    canvas.scale(_bannerScaleX, 1.0);
+
+    final bannerRect = Rect.fromCenter(
+      center: Offset.zero,
+      width: bannerW,
+      height: bannerH,
+    );
+    final radius = Radius.circular(bannerH * 0.28);
+
+    // 1. Soft drop shadow
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(bannerRect.shift(const Offset(0, 3.5)), radius),
+      Paint()..color = const Color(0x2E1A0903),
+    );
+
+    // 2. 3D bottom bevel
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(bannerRect, radius),
+      Paint()..color = const Color(0xFFE5D2C7),
+    );
+
+    // 3. Cream top face
+    final topFaceRect = Rect.fromLTRB(
+      bannerRect.left,
+      bannerRect.top,
+      bannerRect.right,
+      bannerRect.bottom - 4.5,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(topFaceRect, radius),
+      Paint()..color = const Color(0xFFFFFDF9),
+    );
+
+    // 4. Draw letters and underscores (or '?' for unrevealed Hidden Arrow tail)
+    final startX = -bannerW / 2.0 + padH;
+    for (int i = 0; i < visibleSlots; i++) {
+      final slotCenterX = startX + (i + 0.5) * slotW;
+      if (i < _bannerTracedCount) {
+        final letter = lane.cells[i].letter;
+        final tp = _getCachedTextPainter(
+          text: letter,
+          fontSize: bannerH * 0.48,
+          color: contentColor,
+        );
+        tp.paint(
+          canvas,
+          Offset(slotCenterX - tp.width / 2.0, -tp.height / 2.0 - 2.5),
+        );
+      } else if (lane.hidden) {
+        final tp = _getCachedTextPainter(
+          text: '?',
+          fontSize: bannerH * 0.44,
+          color: contentColor.withValues(alpha: 0.65),
+        );
+        tp.paint(
+          canvas,
+          Offset(slotCenterX - tp.width / 2.0, -tp.height / 2.0 - 2.5),
+        );
+      } else {
+        // Bold bottom underscore bar for remaining letters
+        final barW = slotW * 0.64;
+        const barH = 3.4;
+        final barRect = Rect.fromCenter(
+          center: Offset(slotCenterX, bannerH * 0.16),
+          width: barW,
+          height: barH,
+        );
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(barRect, const Radius.circular(2.0)),
+          Paint()..color = contentColor,
+        );
+      }
+    }
+
+    canvas.restore();
   }
 
   void _drawCrate(Canvas canvas, Vector2 pos, Crate crate) {
@@ -338,46 +551,70 @@ class WordArrowFlameGame extends FlameGame with PanDetector {
       canvas.drawRRect(RRect.fromRectAndRadius(rect, Radius.circular(_tileSize * 0.2)), p);
     }
 
-    // Draw Crate Threshold number
-    final tp = TextPainter(
-      text: TextSpan(
-        text: '${crate.threshold}',
-        style: TextStyle(
-          fontFamily: 'Panteon',
-          fontSize: _tileSize * 0.44,
-          fontWeight: FontWeight.w900,
-          color: Colors.white,
-          shadows: const [
-            Shadow(offset: Offset(0, 1.5), color: Color(0xFF3B1E05), blurRadius: 2),
-          ],
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
+    // Draw Crate Threshold number (cached TextPainter)
+    final tp = _getCachedTextPainter(
+      text: '${crate.threshold}',
+      fontSize: _tileSize * 0.44,
+      color: Colors.white,
+      shadows: const [
+        Shadow(offset: Offset(0, 1.5), color: Color(0xFF3B1E05), blurRadius: 2),
+      ],
+      shadowTag: 'crate',
+    );
     tp.paint(canvas, Offset(pos.x + (_tileSize - tp.width) / 2, pos.y + (_tileSize - tp.height) / 2 - 2));
   }
 
   void _drawLaneShadows(Canvas canvas, _LaneAnimState anim) {
     final lane = anim.lane;
-    final offset = anim.currentOffset;
+
+    // Arrow soft downward drop shadow:
+    // Translate in screen space (downward +Y) FIRST, then rotate by arrow direction
+    // so the triangular shadow matches the arrow shape without square corner artifacts!
+    final aPos = anim.getArrowPixelPos(_origin, _cellSize, _tileSpacing);
+    if (_arrowBase != null) {
+      final arrowScale = 1.0 + (lane.id == controller.hintedLaneId ? 0.12 * sin(_hintPulseTime * 6.0) : 0.0);
+      canvas.save();
+      canvas.translate(
+        aPos.x + _tileSize / 2,
+        aPos.y + _tileSize / 2 + _tileSize * 0.065,
+      );
+      canvas.rotate(_directionToAngle(lane.direction));
+      canvas.scale(arrowScale);
+
+      final arrowShadowRect = Rect.fromCenter(
+        center: Offset.zero,
+        width: _tileSize,
+        height: _tileSize,
+      );
+      final arrowShadowColor = const Color(0xFF1D0B03).withValues(alpha: 0.28 * anim.opacity);
+      final p = Paint()
+        ..color = arrowShadowColor
+        ..colorFilter = ColorFilter.mode(arrowShadowColor, BlendMode.modulate);
+      canvas.drawImageRect(
+        _arrowBase!,
+        Rect.fromLTWH(0, 0, _arrowBase!.width.toDouble(), _arrowBase!.height.toDouble()),
+        arrowShadowRect,
+        p,
+      );
+      canvas.restore();
+    }
 
     if (_tileShadow == null) return;
-    final shadowPaint = Paint()..color = Colors.white.withOpacity(0.38 * anim.opacity);
+    final shadowPaint = Paint()..color = Colors.white.withValues(alpha: 0.30 * anim.opacity);
 
-    // Arrow soft downward drop shadow (never rotate with arrow direction - global top-down lighting)
-    final aPos = _gridToPixel(lane.arrow.x, lane.arrow.y) + offset;
-    final aShadowRect = Rect.fromLTWH(aPos.x - 1, aPos.y + _tileSize * 0.08, _tileSize + 2, _tileSize + 2);
-    canvas.drawImageRect(
-      _tileShadow!,
-      Rect.fromLTWH(0, 0, _tileShadow!.width.toDouble(), _tileShadow!.height.toDouble()),
-      aShadowRect,
-      shadowPaint,
-    );
-
-    // Tile shadows (consistent soft downward drop shadow)
-    for (final cell in lane.cells) {
-      final pos = _gridToPixel(cell.x, cell.y) + offset;
-      final sRect = Rect.fromLTWH(pos.x - 1, pos.y + _tileSize * 0.08, _tileSize + 2, _tileSize + 2);
+    // Tile shadows (consistent soft downward drop shadow with smooth interpolated scale)
+    for (int i = 0; i < lane.cells.length; i++) {
+      final pos = anim.getCellPixelPos(i, _origin, _cellSize, _tileSpacing);
+      final scale = anim.cellScales[i];
+      final sSize = (_tileSize + 1.5) * scale;
+      final sRect = Rect.fromCenter(
+        center: Offset(
+          pos.x + _tileSize / 2,
+          pos.y + _tileSize / 2 + _tileSize * 0.06,
+        ),
+        width: sSize,
+        height: sSize,
+      );
       canvas.drawImageRect(
         _tileShadow!,
         Rect.fromLTWH(0, 0, _tileShadow!.width.toDouble(), _tileShadow!.height.toDouble()),
@@ -389,17 +626,18 @@ class WordArrowFlameGame extends FlameGame with PanDetector {
 
   void _drawLaneTiles(Canvas canvas, _LaneAnimState anim) {
     final lane = anim.lane;
-    final offset = anim.currentOffset;
     final style = GamePalette.getStyle(lane.color);
     final isHinted = lane.id == controller.hintedLaneId;
     final hintPulse = isHinted ? (sin(_hintPulseTime * 6.0) + 1.0) / 2.0 : 0.0;
+    final isActivelyTraced = (_draggedLane?.id == lane.id && _tracedCellCount > 0);
+    final isIncompleteFlash = anim.incompleteFlashAlpha > 0.0;
 
-    final aPos = _gridToPixel(lane.arrow.x, lane.arrow.y) + offset;
+    final aPos = anim.getArrowPixelPos(_origin, _cellSize, _tileSpacing);
 
     // Glowing border outline when hinted
     if (isHinted) {
       final glowPaint = Paint()
-        ..color = Color.lerp(const Color(0xFFFFD530), const Color(0xFF00E5FF), hintPulse)!.withOpacity(0.85 * anim.opacity)
+        ..color = Color.lerp(const Color(0xFFFFD530), const Color(0xFF00E5FF), hintPulse)!.withValues(alpha: 0.85 * anim.opacity)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 3.5 + hintPulse * 2.0;
 
@@ -412,15 +650,17 @@ class WordArrowFlameGame extends FlameGame with PanDetector {
       canvas.drawRRect(RRect.fromRectAndRadius(aRect, Radius.circular(_tileSize * 0.22)), glowPaint);
 
       // Glow around all cells
-      for (final cell in lane.cells) {
-        final cPos = _gridToPixel(cell.x, cell.y) + offset;
+      for (int i = 0; i < lane.cells.length; i++) {
+        final cPos = anim.getCellPixelPos(i, _origin, _cellSize, _tileSpacing);
         final cRect = Rect.fromLTWH(cPos.x - 1, cPos.y - 1, _tileSize + 2, _tileSize + 2);
         canvas.drawRRect(RRect.fromRectAndRadius(cRect, Radius.circular(_tileSize * 0.22)), glowPaint);
       }
     }
 
-    // 1. Draw Arrow
+    // 1. Draw Arrow (Arrow keeps its normal theme color during incomplete flash)
     final arrowScale = 1.0 + (isHinted ? 0.12 * sin(_hintPulseTime * 6.0) : 0.0);
+    final arrowTint = style.light;
+
     canvas.save();
     canvas.translate(aPos.x + _tileSize / 2, aPos.y + _tileSize / 2);
     canvas.rotate(_directionToAngle(lane.direction));
@@ -429,8 +669,8 @@ class WordArrowFlameGame extends FlameGame with PanDetector {
     final arrowDrawRect = Rect.fromCenter(center: Offset.zero, width: _tileSize, height: _tileSize);
     if (_arrowBase != null) {
       final p = Paint()
-        ..color = style.light.withOpacity(anim.opacity)
-        ..colorFilter = ColorFilter.mode(style.light.withOpacity(anim.opacity), BlendMode.modulate);
+        ..color = arrowTint.withValues(alpha: anim.opacity)
+        ..colorFilter = ColorFilter.mode(arrowTint.withValues(alpha: anim.opacity), BlendMode.modulate);
       canvas.drawImageRect(
         _arrowBase!,
         Rect.fromLTWH(0, 0, _arrowBase!.width.toDouble(), _arrowBase!.height.toDouble()),
@@ -440,42 +680,50 @@ class WordArrowFlameGame extends FlameGame with PanDetector {
     }
     canvas.restore();
 
-    // Draw word length on arrow (unrotated)
-    final wordLength = lane.length;
+    // Draw remaining letter count (or '?' when lane.hidden == true, matching Unity HiddenLabel = '?')
+    final bool showArrowCount = !(anim.isExiting && anim.exitTime >= 0.05);
+    if (showArrowCount) {
+      final int displayedCount = anim.isExiting
+          ? 0
+          : (isActivelyTraced
+              ? max(0, lane.length - _tracedCellCount)
+              : lane.length);
 
-    final atp = TextPainter(
-      text: TextSpan(
-        text: '$wordLength',
-        style: TextStyle(
-          fontFamily: 'Panteon',
-          fontSize: _tileSize * 0.44,
-          fontWeight: FontWeight.w900,
-          color: style.textColor.withOpacity(anim.opacity),
-          shadows: [
-            Shadow(
-              offset: const Offset(0, 1),
-              color: Colors.white.withOpacity(0.3 * anim.opacity),
-              blurRadius: 1,
-            ),
-          ],
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    atp.paint(canvas, Offset(aPos.x + (_tileSize - atp.width) / 2, aPos.y + (_tileSize - atp.height) / 2 - 2));
+      final String arrowLabel = lane.hidden ? '?' : '$displayedCount';
+
+      final atp = _getCachedTextPainter(
+        text: arrowLabel,
+        fontSize: _tileSize * 0.44,
+        color: style.textColor.withValues(alpha: anim.opacity),
+        shadows: [
+          Shadow(
+            offset: const Offset(0, 1),
+            color: Colors.white.withValues(alpha: 0.3 * anim.opacity),
+            blurRadius: 1,
+          ),
+        ],
+        shadowTag: 'hi',
+      );
+      atp.paint(canvas, Offset(aPos.x + (_tileSize - atp.width) / 2, aPos.y + (_tileSize - atp.height) / 2 - 2));
+    }
 
     // 2. Draw Letter Cells
     for (int i = 0; i < lane.cells.length; i++) {
       final cell = lane.cells[i];
-      final pos = _gridToPixel(cell.x, cell.y) + offset;
+      final pos = anim.getCellPixelPos(i, _origin, _cellSize, _tileSpacing);
       final isHead = (i == 0);
+      final isHighlighted = anim.isExiting || (isActivelyTraced && i < _tracedCellCount);
+      final isFlashingCell = isIncompleteFlash && i < anim.incompleteTracedCount;
+      final tileScale = anim.cellScales[i];
 
       _drawLetterTile(
         canvas: canvas,
         pos: pos,
         letter: cell.letter,
         isHead: isHead,
-        isHighlighted: false,
+        isHighlighted: isHighlighted,
+        isIncompleteFlash: isFlashingCell,
+        tileScale: tileScale,
         isLocked: cell.locked,
         style: style,
         anim: anim,
@@ -489,24 +737,33 @@ class WordArrowFlameGame extends FlameGame with PanDetector {
     required String letter,
     required bool isHead,
     required bool isHighlighted,
+    required bool isIncompleteFlash,
+    required double tileScale,
     required bool isLocked,
     required LaneColorStyle style,
     required _LaneAnimState anim,
   }) {
-    final rect = Rect.fromLTWH(pos.x, pos.y, _tileSize, _tileSize);
+    final drawSize = _tileSize * tileScale;
+    final rect = Rect.fromCenter(
+      center: Offset(pos.x + _tileSize / 2, pos.y + _tileSize / 2),
+      width: drawSize,
+      height: drawSize,
+    );
 
     // Base tile
     if (_tileCream != null) {
-      Color tint = const Color(0xFFFFFDF9);
-      if (isHighlighted) {
-        tint = const Color(0xFFFFE082); // Gold selection
-      } else if (isHead) {
-        tint = style.light; // Head tile matches arrow accent color
+      final Color baseRestingColor = isHead ? style.light : const Color(0xFFFFFDF9);
+      Color tint = baseRestingColor;
+      if (isIncompleteFlash) {
+        // Flash bright red (#FF454C) and fade smoothly back to resting color (lane color for head, cream for body)
+        tint = Color.lerp(baseRestingColor, const Color(0xFFFF454C), anim.incompleteFlashAlpha)!;
+      } else if (isHighlighted || isHead) {
+        tint = style.light; // Traced tiles and head tile match the lane's primary accent color
       }
 
       final p = Paint()
-        ..color = tint.withOpacity(anim.opacity)
-        ..colorFilter = ColorFilter.mode(tint.withOpacity(anim.opacity), BlendMode.modulate);
+        ..color = tint.withValues(alpha: anim.opacity)
+        ..colorFilter = ColorFilter.mode(tint.withValues(alpha: anim.opacity), BlendMode.modulate);
 
       canvas.drawImageRect(
         _tileCream!,
@@ -519,9 +776,9 @@ class WordArrowFlameGame extends FlameGame with PanDetector {
     // Red Shudder overlay on blocked bounce
     if (anim.redFlashAlpha > 0.0) {
       final redPaint = Paint()
-        ..color = const Color(0xFFFB7185).withOpacity(anim.redFlashAlpha * anim.opacity);
+        ..color = const Color(0xFFFB7185).withValues(alpha: anim.redFlashAlpha * anim.opacity);
       canvas.drawRRect(
-        RRect.fromRectAndRadius(rect, Radius.circular(_tileSize * 0.22)),
+        RRect.fromRectAndRadius(rect, Radius.circular(drawSize * 0.22)),
         redPaint,
       );
     }
@@ -529,36 +786,54 @@ class WordArrowFlameGame extends FlameGame with PanDetector {
     // If locked, padlock will be drawn over it in lock pass, hide letter
     if (isLocked) return;
 
-    // Draw Letter
-    final textColor = (isHead || isHighlighted)
-        ? style.textColor.withOpacity(anim.opacity)
-        : const Color(0xFF261912).withOpacity(anim.opacity);
+    // Draw Letter (cached TextPainter for base font size, scaled on canvas if tileScale != 1.0)
+    final Color baseRestingTextColor = isHead ? style.textColor : const Color(0xFF261912);
+    Color textColor;
+    if (isIncompleteFlash) {
+      textColor = Color.lerp(baseRestingTextColor, const Color(0xFFB92B27), anim.incompleteFlashAlpha)!
+          .withValues(alpha: anim.opacity);
+    } else if (isHead || isHighlighted) {
+      textColor = style.textColor.withValues(alpha: anim.opacity);
+    } else {
+      textColor = const Color(0xFF261912).withValues(alpha: anim.opacity);
+    }
 
-    final tp = TextPainter(
-      text: TextSpan(
-        text: letter,
-        style: TextStyle(
-          fontFamily: 'Panteon',
-          fontSize: _tileSize * 0.52,
-          fontWeight: FontWeight.w900,
-          color: textColor,
-          letterSpacing: -0.5,
-          shadows: (isHead || isHighlighted)
-              ? [
-                  Shadow(
-                    offset: const Offset(0, 1),
-                    color: Colors.white.withOpacity(0.3 * anim.opacity),
-                    blurRadius: 1,
-                  ),
-                ]
-              : null,
+    final hasHighlightShadow = isHead || isHighlighted;
+    final tp = _getCachedTextPainter(
+      text: letter,
+      fontSize: _tileSize * 0.52,
+      color: textColor,
+      letterSpacing: -0.5,
+      shadows: hasHighlightShadow
+          ? [
+              Shadow(
+                offset: const Offset(0, 1),
+                color: Colors.white.withValues(alpha: 0.3 * anim.opacity),
+                blurRadius: 1,
+              ),
+            ]
+          : null,
+      shadowTag: hasHighlightShadow ? 'hi' : 'no',
+    );
+
+    if ((tileScale - 1.0).abs() > 0.002) {
+      canvas.save();
+      canvas.translate(pos.x + _tileSize / 2, pos.y + _tileSize / 2);
+      canvas.scale(tileScale);
+      tp.paint(
+        canvas,
+        Offset(-tp.width / 2, -tp.height / 2 - _tileSize * 0.06),
+      );
+      canvas.restore();
+    } else {
+      tp.paint(
+        canvas,
+        Offset(
+          pos.x + (_tileSize - tp.width) / 2,
+          pos.y + (_tileSize - tp.height) / 2 - _tileSize * 0.06,
         ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-
-    // Offset slightly upward due to 3D bevel extrusion
-    tp.paint(canvas, Offset(pos.x + (_tileSize - tp.width) / 2, pos.y + (_tileSize - tp.height) / 2 - _tileSize * 0.06));
+      );
+    }
   }
 
   void _drawLock(Canvas canvas, PointPos pos, _LockState lock) {
@@ -567,8 +842,10 @@ class WordArrowFlameGame extends FlameGame with PanDetector {
       orElse: () => Lane(id: '', color: 0, arrow: const PointPos(x: -1, y: -1), direction: '', cells: []),
     );
     final anim = lane.id.isNotEmpty ? _laneAnims[lane.id] : null;
-    final offset = anim != null ? anim.currentOffset : Vector2.zero();
-    final pPos = _gridToPixel(pos.x, pos.y) + offset;
+    final cellIdx = lane.cells.indexWhere((c) => c.pos == pos);
+    final pPos = (anim != null && cellIdx != -1)
+        ? anim.getCellPixelPos(cellIdx, _origin, _cellSize, _tileSpacing)
+        : _gridToPixel(pos.x, pos.y);
 
     final img = _lockImages[lock.colorIdx];
     if (img == null) return;
@@ -665,7 +942,6 @@ class WordArrowFlameGame extends FlameGame with PanDetector {
     }
 
     final pos = Vector2(info.eventPosition.widget.x, info.eventPosition.widget.y);
-    _dragStartPos = pos;
     _dragLastPos = pos;
     final gridPos = _pixelToGrid(pos);
 
@@ -675,58 +951,116 @@ class WordArrowFlameGame extends FlameGame with PanDetector {
       return;
     }
 
+    // WordOutTutorialConfig: _restrictInputToHintLane = true while _clearedWordsCount < _lessonWordCount (1) on Level 1
+    final Lane? restrictedLane = _getLevel1RestrictedLane();
+
     // Find clicked lane (tap/drag on arrow or any cell of the word)
     for (final lane in controller.activeLanes) {
-      if (lane.arrow.x == gridPos.x && lane.arrow.y == gridPos.y) {
-        _draggedLane = lane;
-        _audio.playTileSelect();
-        return;
-      }
-      for (int i = 0; i < lane.cells.length; i++) {
-        if (lane.cells[i].x == gridPos.x && lane.cells[i].y == gridPos.y) {
-          _draggedLane = lane;
-          _audio.playTileSelect();
+      final bool hitArrow = lane.arrow.x == gridPos.x && lane.arrow.y == gridPos.y;
+      final bool hitCell = lane.cells.any((c) => c.x == gridPos.x && c.y == gridPos.y);
+      if (hitArrow || hitCell) {
+        if (restrictedLane != null && lane.id != restrictedLane.id) {
           return;
         }
+        _startLaneDrag(lane, 1);
+        return;
       }
     }
+  }
+
+  void _startLaneDrag(Lane lane, int initialCount) {
+    _draggedLane = lane;
+    _tracedCellCount = initialCount.clamp(1, lane.length);
+    _bannerLane = lane;
+    _bannerTracedCount = _tracedCellCount;
+    _bannerClosing = false;
+    _bannerFlashTimer = 0.0;
+    _audio.playTileSelect();
+  }
+
+  /// Sets an active word trace state for previewing / testing the Top Word Preview Banner.
+  void debugSetWordTrace(Lane lane, int tracedCount) {
+    _draggedLane = lane;
+    _tracedCellCount = tracedCount.clamp(1, lane.length);
+    _bannerLane = lane;
+    _bannerTracedCount = _tracedCellCount;
+    _bannerScaleX = 1.0;
+    _bannerClosing = false;
+    _bannerFlashTimer = 0.0;
   }
 
   @override
   void onPanUpdate(DragUpdateInfo info) {
     if (_draggedLane == null || controller.status != GameStatus.playing) return;
-    _dragLastPos = Vector2(info.eventPosition.widget.x, info.eventPosition.widget.y);
+    final pos = Vector2(info.eventPosition.widget.x, info.eventPosition.widget.y);
+    final prevPos = _dragLastPos ?? pos;
+    _dragLastPos = pos;
+
+    final lane = _draggedLane!;
+    final gridPos = _pixelToGrid(pos);
+
+    // Sequentially trace along the word's exact cell path (supports straight, L-shaped, and U-shaped words)
+    while (_tracedCellCount < lane.cells.length) {
+      final nextIdx = _tracedCellCount;
+      final nextCell = lane.cells[nextIdx];
+      final nextCenter = _gridToPixel(nextCell.x, nextCell.y) +
+          Vector2(_tileSize / 2, _tileSize / 2);
+
+      final dist = _distToSegment(nextCenter, prevPos, pos);
+
+      bool reachedByStep = false;
+      if (nextIdx > 0) {
+        final prevCell = lane.cells[nextIdx - 1];
+        final prevCenter = _gridToPixel(prevCell.x, prevCell.y) +
+            Vector2(_tileSize / 2, _tileSize / 2);
+        final stepVec = nextCenter - prevCenter;
+        final stepLenSq = stepVec.length2;
+        if (stepLenSq > 1.0) {
+          final tStep = (pos - prevCenter).dot(stepVec) / stepLenSq;
+          final perpDist = ((pos - prevCenter) - stepVec * tStep.clamp(0.0, 1.0)).length;
+          if (tStep >= 0.52 && perpDist < _cellSize * 0.85) {
+            reachedByStep = true;
+          }
+        }
+      }
+
+      if ((gridPos.x == nextCell.x && gridPos.y == nextCell.y) ||
+          dist < _cellSize * 0.62 ||
+          reachedByStep) {
+        _tracedCellCount++;
+        _bannerTracedCount = _tracedCellCount;
+        _audio.playTileSelect();
+      } else {
+        break;
+      }
+    }
+  }
+
+  double _distToSegment(Vector2 p, Vector2 a, Vector2 b) {
+    final ab = b - a;
+    final lenSq = ab.length2;
+    if (lenSq == 0.0) return (p - a).length;
+    final t = ((p - a).dot(ab) / lenSq).clamp(0.0, 1.0);
+    final proj = a + ab * t;
+    return (p - proj).length;
   }
 
   @override
   void onPanEnd(DragEndInfo info) {
     if (_draggedLane != null) {
       final lane = _draggedLane!;
-      final vel = Vector2(info.velocity.x, info.velocity.y);
-      final delta = (_dragLastPos != null && _dragStartPos != null)
-          ? (_dragLastPos! - _dragStartPos!)
-          : Vector2.zero();
-      final dirVec = _directionToVector(lane.direction);
 
-      bool shouldCommit = false;
-
-      // 1. Short tap anywhere on the lane (arrow or letters)
-      if (delta.length < 24.0) {
-        shouldCommit = true;
-      } else {
-        // 2. Flick / swipe gesture in the direction of the arrow
-        final velProj = vel.dot(dirVec);
-        final deltaProj = delta.dot(dirVec);
-
-        if (vel.length > 80.0 && velProj > 0.2) {
-          shouldCommit = true;
-        } else if (delta.length > 15.0 && deltaProj > 0.25 * delta.length) {
-          shouldCommit = true;
-        }
-      }
-
-      if (shouldCommit) {
+      if (_tracedCellCount >= lane.length) {
+        // User traced all letters of the word -> commit lane!
+        _bannerClosing = true;
         _commitLane(lane);
+      } else if (_tracedCellCount >= 1) {
+        // Incomplete word trace released -> flash coral red briefly before collapsing banner
+        final anim = _laneAnims[lane.id];
+        anim?.beginIncompleteFlash(_tracedCellCount);
+        _bannerFlashTimer = 0.35;
+      } else {
+        _bannerClosing = true;
       }
 
       _resetDrag();
@@ -735,13 +1069,14 @@ class WordArrowFlameGame extends FlameGame with PanDetector {
 
   @override
   void onPanCancel() {
+    _bannerClosing = true;
     _resetDrag();
   }
 
   void _resetDrag() {
     _draggedLane = null;
-    _dragStartPos = null;
     _dragLastPos = null;
+    _tracedCellCount = 0;
   }
 
   // ==================== GAME LOGIC & COMMITS ====================
@@ -767,16 +1102,13 @@ class WordArrowFlameGame extends FlameGame with PanDetector {
   void _executeExitFlight(_LaneAnimState anim) {
     final lane = anim.lane;
     controller.movesLeft--;
+    _clearedWordsCount++;
+    _idleSeconds = 0.0;
+    _tutoHandCycleTime = 0.0;
 
     final dirVec = _directionToVector(lane.direction);
     anim.beginExitFlight(dirVec);
     _audio.playLaneClear();
-
-    // Spawn exit smoke particles
-    final arrowPixel = _gridToPixel(lane.arrow.x, lane.arrow.y) + Vector2(_tileSize / 2, _tileSize / 2);
-    for (int i = 0; i < 8; i++) {
-      _spawnSmokeParticle(arrowPixel, dirVec);
-    }
 
     // Check if this lane carries any keys
     for (final cell in lane.cells) {
@@ -806,7 +1138,7 @@ class WordArrowFlameGame extends FlameGame with PanDetector {
       }
     }
 
-    // Damage crates along path
+    // Damage crates immediately when clear wave starts (matches Unity f_084)
     bool crateDamaged = false;
     for (final crate in controller.activeCrates) {
       if (crate.threshold > 0) {
@@ -818,8 +1150,6 @@ class WordArrowFlameGame extends FlameGame with PanDetector {
       _audio.playCrateHit();
       controller.activeCrates.removeWhere((c) => c.threshold <= 0);
     }
-
-    controller.notifyBoardChanged();
   }
 
   void _executeBlockedRecoil(_LaneAnimState anim, {bool isLockedDirectly = false}) {
@@ -827,10 +1157,13 @@ class WordArrowFlameGame extends FlameGame with PanDetector {
     final dirVec = _directionToVector(lane.direction);
 
     anim.beginRecoil(dirVec);
-    controller.stars = max(0, controller.stars - 1);
+    // WordOutTutorialConfig: _unlimitedLives = true on Level 1 tutorial
+    if (controller.levelNumber != 1) {
+      controller.stars = max(0, controller.stars - 1);
+    }
     _audio.playBlockedBounce();
 
-    if (controller.stars <= 0) {
+    if (controller.levelNumber != 1 && controller.stars <= 0) {
       controller.status = GameStatus.lost;
       _audio.playLose();
       onLose();
@@ -840,11 +1173,11 @@ class WordArrowFlameGame extends FlameGame with PanDetector {
   }
 
   void _applyHammer(int gx, int gy) {
-    controller.isHammerActive = false;
-
     // 1. Crate check
     final crateIdx = controller.activeCrates.indexWhere((c) => c.x == gx && c.y == gy);
     if (crateIdx != -1) {
+      controller.isHammerActive = false;
+      controller.isHammerTutorialStep = false;
       final crate = controller.activeCrates[crateIdx];
       final pPos = _gridToPixel(crate.x, crate.y) + Vector2(_tileSize / 2, _tileSize / 2);
       for (int i = 0; i < 18; i++) {
@@ -855,6 +1188,7 @@ class WordArrowFlameGame extends FlameGame with PanDetector {
       }
       controller.activeCrates.removeAt(crateIdx);
       _audio.playCrateHit();
+      controller.onHammerConsumedOnBoard?.call();
       controller.notifyBoardChanged();
       return;
     }
@@ -864,6 +1198,8 @@ class WordArrowFlameGame extends FlameGame with PanDetector {
       if ((lane.arrow.x == gx && lane.arrow.y == gy) || lane.cells.any((c) => c.x == gx && c.y == gy)) {
         final anim = _laneAnims[lane.id];
         if (anim != null && !anim.isExiting) {
+          controller.isHammerActive = false;
+          controller.isHammerTutorialStep = false;
           final aPos = _gridToPixel(lane.arrow.x, lane.arrow.y) + Vector2(_tileSize / 2, _tileSize / 2);
           for (int i = 0; i < 10; i++) {
             _spawnSmokeParticle(aPos, Vector2.zero());
@@ -878,32 +1214,86 @@ class WordArrowFlameGame extends FlameGame with PanDetector {
             }
           }
           _audio.playCrateHit();
+          controller.onHammerConsumedOnBoard?.call();
           _executeExitFlight(anim);
+          controller.notifyBoardChanged();
           return;
         }
       }
     }
-
-    controller.notifyBoardChanged();
   }
 
+  /// Authentic Unity Firework Booster (DefaultFireworkWordCount = 5,
+  /// DefaultRocketTravelSeconds = 0.60, DefaultFireworkStaggerSeconds = 0.05)
   bool triggerRocketBooster() {
     if (controller.status != GameStatus.playing) return false;
 
-    // 1. Target crate if any exist
-    if (controller.activeCrates.isNotEmpty) {
-      final crate = controller.activeCrates.first;
-      final targetPos = _gridToPixel(crate.x, crate.y) + Vector2(_tileSize / 2, _tileSize / 2);
-      final startPos = Vector2(targetPos.x, size.y + 80);
+    const int maxTargets = 5;
+    final List<Crate> targetCrates = [];
+    final List<_LaneAnimState> targetLaneAnims = [];
+    final Set<String> chosenLaneIds = {};
+
+    // 1. Prioritize active crates (up to 2 crates first so words also fly!)
+    for (final crate in controller.activeCrates) {
+      if (crate.threshold > 0 && targetCrates.length < 2) {
+        targetCrates.add(crate);
+      }
+    }
+
+    // 2. Prioritize clear unlocked lanes
+    for (final lane in controller.activeLanes) {
+      if (targetCrates.length + targetLaneAnims.length >= maxTargets) break;
+      final anim = _laneAnims[lane.id];
+      if (anim != null &&
+          !anim.isExiting &&
+          !lane.isLocked &&
+          controller.isPathClear(lane)) {
+        targetLaneAnims.add(anim);
+        chosenLaneIds.add(lane.id);
+      }
+    }
+
+    // 3. Fill remaining slots up to 5 with other active non-exiting unlocked lanes (or any lane)
+    for (final lane in controller.activeLanes) {
+      if (targetCrates.length + targetLaneAnims.length >= maxTargets) break;
+      if (chosenLaneIds.contains(lane.id) || lane.isLocked) continue;
+      final anim = _laneAnims[lane.id];
+      if (anim != null && !anim.isExiting) {
+        targetLaneAnims.add(anim);
+        chosenLaneIds.add(lane.id);
+      }
+    }
+    for (final lane in controller.activeLanes) {
+      if (targetCrates.length + targetLaneAnims.length >= maxTargets) break;
+      if (chosenLaneIds.contains(lane.id)) continue;
+      final anim = _laneAnims[lane.id];
+      if (anim != null && !anim.isExiting) {
+        targetLaneAnims.add(anim);
+        chosenLaneIds.add(lane.id);
+      }
+    }
+
+    final int totalCount = targetCrates.length + targetLaneAnims.length;
+    if (totalCount == 0) return false;
+
+    int launchIndex = 0;
+
+    for (final crate in targetCrates) {
+      final targetPos =
+          _gridToPixel(crate.x, crate.y) + Vector2(_tileSize / 2, _tileSize / 2);
+      final spreadX = (launchIndex - (totalCount - 1) / 2.0) * 22.0;
+      final startPos = Vector2(size.x * 0.5 + spreadX, size.y + 60);
 
       _flyingRockets.add(_FlyingRocket(
         start: startPos,
         target: targetPos,
+        delay: launchIndex * 0.055,
+        duration: 0.52,
         onImpact: () {
-          for (int i = 0; i < 20; i++) {
+          for (int i = 0; i < 18; i++) {
             _spawnSmokeParticle(targetPos, Vector2.zero());
           }
-          for (int i = 0; i < 15; i++) {
+          for (int i = 0; i < 14; i++) {
             _spawnSparklerParticle(targetPos);
           }
           controller.activeCrates.remove(crate);
@@ -911,42 +1301,38 @@ class WordArrowFlameGame extends FlameGame with PanDetector {
           controller.notifyBoardChanged();
         },
       ));
-      _audio.playSwipe();
-      return true;
+      launchIndex++;
     }
 
-    // 2. Target first clear or active lane
-    Lane? targetLane;
-    for (final l in controller.activeLanes) {
-      if (controller.isPathClear(l) && !l.isLocked) {
-        targetLane = l;
-        break;
-      }
-    }
-    targetLane ??= (controller.activeLanes.isNotEmpty ? controller.activeLanes.first : null);
+    for (final anim in targetLaneAnims) {
+      final targetLane = anim.lane;
+      final aPos = _gridToPixel(targetLane.arrow.x, targetLane.arrow.y) +
+          Vector2(_tileSize / 2, _tileSize / 2);
+      final spreadX = (launchIndex - (totalCount - 1) / 2.0) * 22.0;
+      final startPos = Vector2(size.x * 0.5 + spreadX, size.y + 60);
 
-    if (targetLane != null) {
-      final anim = _laneAnims[targetLane.id];
-      if (anim != null && !anim.isExiting) {
-        final aPos = _gridToPixel(targetLane.arrow.x, targetLane.arrow.y) + Vector2(_tileSize / 2, _tileSize / 2);
-        final startPos = Vector2(aPos.x, size.y + 80);
-
-        _flyingRockets.add(_FlyingRocket(
-          start: startPos,
-          target: aPos,
-          onImpact: () {
-            for (int i = 0; i < 15; i++) {
+      _flyingRockets.add(_FlyingRocket(
+        start: startPos,
+        target: aPos,
+        delay: launchIndex * 0.055,
+        duration: 0.54,
+        onImpact: () {
+          if (!anim.isExiting && !anim.isExited) {
+            for (int i = 0; i < 16; i++) {
               _spawnSparklerParticle(aPos);
             }
+            for (int i = 0; i < 10; i++) {
+              _spawnSmokeParticle(aPos, Vector2.zero());
+            }
             _executeExitFlight(anim);
-          },
-        ));
-        _audio.playSwipe();
-        return true;
-      }
+          }
+        },
+      ));
+      launchIndex++;
     }
 
-    return false;
+    _audio.playSwipe();
+    return true;
   }
 
   void _drawFlyingRocket(Canvas canvas, _FlyingRocket rocket) {
@@ -1042,6 +1428,270 @@ class WordArrowFlameGame extends FlameGame with PanDetector {
         return Vector2.zero();
     }
   }
+
+  // ==================== BOARD TUTORIALS (LEVEL 1-2 & HAMMER STEP 2) ====================
+
+  Lane? _getLevel1RestrictedLane() {
+    if (controller.levelNumber != 1 || _clearedWordsCount >= 1) return null;
+    if (controller.level.lanes.isEmpty) return null;
+    final hintLaneId = controller.level.lanes.first.id;
+    final anim = _laneAnims[hintLaneId];
+    if (anim != null && !anim.isExiting && !anim.isExited) {
+      return anim.lane;
+    }
+    return null;
+  }
+
+  Lane? _selectSwipeTutorialLane() {
+    if (controller.status != GameStatus.playing || controller.isHammerActive) {
+      return null;
+    }
+    final lvl = controller.levelNumber;
+    if (lvl != 1 && lvl != 2) return null;
+
+    // On Level 1 first word: strictly guide Lane 0 ('FIND') with 0s idle delay
+    final restricted = _getLevel1RestrictedLane();
+    if (restricted != null) {
+      return restricted;
+    }
+
+    // Subsequent words on Level 1 (after 0.8s idle) or Level 2 (after 1.4s idle)
+    final double requiredIdle = (lvl == 1) ? 0.80 : 1.40;
+    if (_idleSeconds < requiredIdle) return null;
+
+    for (final lane in controller.activeLanes) {
+      final anim = _laneAnims[lane.id];
+      if (anim != null &&
+          !anim.isExiting &&
+          !anim.isExited &&
+          controller.isPathClear(lane)) {
+        return lane;
+      }
+    }
+    return null;
+  }
+
+  void _updateTutorialHand(double dt) {
+    if (_draggedLane != null || controller.status != GameStatus.playing) {
+      _idleSeconds = 0.0;
+      _tutoHandCycleTime = 0.0;
+      return;
+    }
+
+    // Hammer Tutorial Step 2 (WaitForHammerArmedStateStep)
+    if (controller.isHammerActive && controller.isHammerTutorialStep) {
+      if (_tutoCurrentTargetId != '__hammer__') {
+        _tutoCurrentTargetId = '__hammer__';
+        _tutoHandCycleTime = 0.0;
+      } else {
+        _tutoHandCycleTime += dt;
+      }
+      return;
+    }
+
+    _idleSeconds += dt;
+    final targetLane = _selectSwipeTutorialLane();
+    if (targetLane == null) {
+      _tutoCurrentTargetId = null;
+      _tutoHandCycleTime = 0.0;
+      return;
+    }
+
+    if (_tutoCurrentTargetId != targetLane.id) {
+      _tutoCurrentTargetId = targetLane.id;
+      _tutoHandCycleTime = 0.0;
+    } else {
+      _tutoHandCycleTime += dt;
+    }
+  }
+
+  Vector2 _cellCenter(LetterCell cell) {
+    return _gridToPixel(cell.x, cell.y) + Vector2(_tileSize / 2, _tileSize / 2);
+  }
+
+  void _drawTutorialHand(Canvas canvas) {
+    if (_handImg == null ||
+        _draggedLane != null ||
+        controller.status != GameStatus.playing) {
+      return;
+    }
+
+    // 1. Hammer Tutorial Step 2: Tap any word tile / crate on board
+    if (controller.isHammerActive && controller.isHammerTutorialStep) {
+      Vector2? targetPos;
+      if (controller.activeCrates.isNotEmpty) {
+        final c = controller.activeCrates.first;
+        targetPos = _gridToPixel(c.x, c.y) + Vector2(_tileSize / 2, _tileSize / 2);
+      } else {
+        for (final lane in controller.activeLanes) {
+          final anim = _laneAnims[lane.id];
+          if (anim != null && !anim.isExiting && lane.cells.isNotEmpty) {
+            targetPos = _cellCenter(lane.cells.first);
+            break;
+          }
+        }
+      }
+      if (targetPos == null) return;
+
+      const double tapCycle = 0.80;
+      final double t = _tutoHandCycleTime % tapCycle;
+      final double pressPhase = sin((t / tapCycle) * pi);
+      final double handScale = 1.0 - (1.0 - _handPressScale) * pressPhase;
+      final double hoverOffset = (1.0 - pressPhase) * 9.0;
+
+      _paintHandSprite(
+        canvas: canvas,
+        fingertipPos: targetPos + Vector2(hoverOffset, -hoverOffset),
+        glowCenter: targetPos,
+        scale: handScale,
+        alpha: 1.0,
+        glowAlpha: 0.35 + 0.55 * pressPhase,
+      );
+      return;
+    }
+
+    // 2. Early-Level Swipe Tutorial (WordOutTutorialHand)
+    final targetLane = _selectSwipeTutorialLane();
+    if (targetLane == null || targetLane.cells.isEmpty) return;
+
+    final int n = targetLane.cells.length;
+    final double pressEnd = _handPressSeconds;
+    final double moveDuration = max(0, n - 1) * _handCellSeconds;
+    final double moveEnd = pressEnd + moveDuration;
+    final double releaseEnd = moveEnd + _handReleaseSeconds;
+    final double totalCycle = releaseEnd + _handLoopDelaySeconds;
+
+    final double t = _tutoHandCycleTime % totalCycle;
+    if (t >= releaseEnd) return; // Loop pause window
+
+    Vector2 fingertipPos;
+    double scale = 1.0;
+    double alpha = 1.0;
+    double glowAlpha = 0.0;
+    double tracedSegmentProgress = 0.0;
+
+    if (t < pressEnd) {
+      final u = Curves.easeOutCubic.transform((t / pressEnd).clamp(0.0, 1.0));
+      fingertipPos = _cellCenter(targetLane.cells.first);
+      scale = 1.06 - (1.06 - _handPressScale) * u;
+      alpha = u;
+      glowAlpha = 0.85 * u;
+      tracedSegmentProgress = 0.0;
+    } else if (t < moveEnd && n > 1) {
+      final segFloat = (t - pressEnd) / _handCellSeconds;
+      final idx = segFloat.floor().clamp(0, n - 2);
+      final frac = (segFloat - idx).clamp(0.0, 1.0);
+      final pA = _cellCenter(targetLane.cells[idx]);
+      final pB = _cellCenter(targetLane.cells[idx + 1]);
+      fingertipPos = pA + (pB - pA) * frac;
+      scale = _handPressScale;
+      alpha = 1.0;
+      glowAlpha = 0.88;
+      tracedSegmentProgress = segFloat;
+    } else {
+      final u = Curves.easeInQuad
+          .transform(((t - moveEnd) / _handReleaseSeconds).clamp(0.0, 1.0));
+      fingertipPos = _cellCenter(targetLane.cells.last);
+      scale = _handPressScale + (1.05 - _handPressScale) * u;
+      alpha = 1.0 - u;
+      glowAlpha = 0.85 * (1.0 - u);
+      tracedSegmentProgress = (n - 1).toDouble();
+    }
+
+    // Draw subtle luminous swipe guide line along the cells traced so far
+    if (tracedSegmentProgress > 0.02 && n > 1) {
+      final trailPath = Path();
+      final p0 = _cellCenter(targetLane.cells[0]);
+      trailPath.moveTo(p0.x, p0.y);
+      final fullSegments = tracedSegmentProgress.floor().clamp(0, n - 1);
+      for (int i = 1; i <= fullSegments; i++) {
+        final piPos = _cellCenter(targetLane.cells[i]);
+        trailPath.lineTo(piPos.x, piPos.y);
+      }
+      trailPath.lineTo(fingertipPos.x, fingertipPos.y);
+
+      canvas.drawPath(
+        trailPath,
+        Paint()
+          ..color = const Color(0xFFFFE066).withValues(alpha: 0.42 * alpha)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = _tileSize * 0.24
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round,
+      );
+    }
+
+    _paintHandSprite(
+      canvas: canvas,
+      fingertipPos: fingertipPos,
+      glowCenter: fingertipPos,
+      scale: scale,
+      alpha: alpha,
+      glowAlpha: glowAlpha,
+    );
+  }
+
+  void _paintHandSprite({
+    required Canvas canvas,
+    required Vector2 fingertipPos,
+    required Vector2 glowCenter,
+    required double scale,
+    required double alpha,
+    required double glowAlpha,
+  }) {
+    if (_handGlowImg != null && glowAlpha > 0.01) {
+      final glowSize = _tileSize * 1.35;
+      final gRect = Rect.fromCenter(
+        center: Offset(glowCenter.x, glowCenter.y),
+        width: glowSize,
+        height: glowSize,
+      );
+      canvas.drawImageRect(
+        _handGlowImg!,
+        Rect.fromLTWH(
+          0,
+          0,
+          _handGlowImg!.width.toDouble(),
+          _handGlowImg!.height.toDouble(),
+        ),
+        gRect,
+        Paint()..color = Colors.white.withValues(alpha: glowAlpha.clamp(0.0, 1.0)),
+      );
+    }
+
+    if (_handImg == null || alpha <= 0.01) return;
+
+    final double handW = (_tileSize * 1.65).clamp(72.0, 108.0);
+    final double handH = handW * (188.0 / 256.0);
+    // Exact index fingertip anchor of dl_general_hand_icon.png (256x188): (0.12 * W, 0.86 * H)
+    final double tipX = handW * 0.12;
+    final double tipY = handH * 0.86;
+
+    canvas.save();
+    canvas.translate(fingertipPos.x, fingertipPos.y);
+    canvas.scale(scale);
+
+    // Subtle soft shadow under hand
+    canvas.drawImageRect(
+      _handImg!,
+      Rect.fromLTWH(0, 0, _handImg!.width.toDouble(), _handImg!.height.toDouble()),
+      Rect.fromLTWH(-tipX + 2, -tipY + 5, handW, handH),
+      Paint()
+        ..color = Colors.black.withValues(alpha: 0.25 * alpha)
+        ..colorFilter = ColorFilter.mode(
+          Colors.black.withValues(alpha: 0.25 * alpha),
+          BlendMode.srcIn,
+        ),
+    );
+
+    canvas.drawImageRect(
+      _handImg!,
+      Rect.fromLTWH(0, 0, _handImg!.width.toDouble(), _handImg!.height.toDouble()),
+      Rect.fromLTWH(-tipX, -tipY, handW, handH),
+      Paint()..color = Colors.white.withValues(alpha: alpha.clamp(0.0, 1.0)),
+    );
+    canvas.restore();
+  }
 }
 
 // ==================== INTERNAL HELPER CLASSES ====================
@@ -1050,27 +1700,39 @@ class _LaneAnimState {
   Lane lane;
   Vector2 currentOffset = Vector2.zero();
   double opacity = 1.0;
+  final List<double> cellScales;
 
-  // Exit Flight
+  // Exit Flight (Wave Ripple + Path-Following Snake Train)
   bool isExiting = false;
   bool isExited = false;
   double _exitTime = 0.0;
+  double _trackDistance = 0.0;
   Vector2 _exitDir = Vector2.zero();
+
+  double get exitTime => _exitTime;
 
   // Damped Recoil Bounce
   bool isBouncing = false;
   double _bounceTime = 0.0;
   Vector2 _bounceDir = Vector2.zero();
 
-  // Red Shudder Flash
+  // Red Shudder Flash (blocked path)
   double redFlashAlpha = 0.0;
 
-  _LaneAnimState({required this.lane});
+  // Incomplete Word Release Flash
+  double incompleteFlashAlpha = 0.0;
+  int incompleteTracedCount = 0;
+
+  _LaneAnimState({required this.lane})
+      : cellScales = List<double>.filled(lane.cells.length, 1.0);
 
   void beginExitFlight(Vector2 dir) {
     isExiting = true;
     _exitDir = dir;
     _exitTime = 0.0;
+    _trackDistance = 0.0;
+    incompleteFlashAlpha = 0.0;
+    opacity = 1.0;
   }
 
   void beginRecoil(Vector2 dir) {
@@ -1080,14 +1742,99 @@ class _LaneAnimState {
     redFlashAlpha = 0.85;
   }
 
-  void update(double dt) {
+  void beginIncompleteFlash(int tracedCount) {
+    incompleteTracedCount = tracedCount;
+    incompleteFlashAlpha = 1.0;
+  }
+
+  /// Scale compression wave (1.0 -> 0.68 -> 1.0) rippling from head (i=0) to tail (i=n-1)
+  double getExitCellScale(int index) {
+    if (!isExiting) return 1.0;
+    final tPeak = 0.045 + index * 0.036;
+    const halfW = 0.095;
+    double waveScale = 1.0;
+    final diff = (_exitTime - tPeak).abs();
+    if (diff < halfW) {
+      final u = diff / halfW;
+      waveScale = 1.0 - 0.32 * 0.5 * (1.0 + cos(u * pi));
+    }
+    if (index == lane.cells.length - 1 && _exitTime < 0.06) {
+      waveScale = min(waveScale, 0.78 + 0.22 * (_exitTime / 0.06));
+    }
+    return waveScale;
+  }
+
+  Vector2 _gridWaypoint(int k) {
+    if (k <= 0) {
+      return Vector2(lane.arrow.x.toDouble(), lane.arrow.y.toDouble());
+    }
+    final idx = (k - 1).clamp(0, lane.cells.length - 1);
+    final c = lane.cells[idx];
+    return Vector2(c.x.toDouble(), c.y.toDouble());
+  }
+
+  /// Continuous grid position along the lane's waypoint track:
+  /// s = 0 is arrow, s = 1 is cells[0], ..., s = n is cells[n-1], s < 0 is outward along _exitDir
+  Vector2 _gridPosAlongTrack(double s) {
+    final w0 = _gridWaypoint(0);
+    if (s <= 0.0) {
+      return w0 + _exitDir * (-s);
+    }
+    final n = lane.cells.length;
+    if (s >= n) {
+      return _gridWaypoint(n);
+    }
+    final k = s.floor();
+    final frac = s - k;
+    final a = _gridWaypoint(k);
+    final b = _gridWaypoint(k + 1);
+    return a + (b - a) * frac;
+  }
+
+  Vector2 getArrowPixelPos(Vector2 origin, double cellSize, double tileSpacing) {
+    if (isExiting) {
+      final gPos = _gridPosAlongTrack(-_trackDistance);
+      return Vector2(
+        origin.x + gPos.x * cellSize + tileSpacing / 2.0,
+        origin.y + gPos.y * cellSize + tileSpacing / 2.0,
+      );
+    }
+    return Vector2(
+      origin.x + lane.arrow.x * cellSize + tileSpacing / 2.0,
+      origin.y + lane.arrow.y * cellSize + tileSpacing / 2.0,
+    ) + currentOffset;
+  }
+
+  Vector2 getCellPixelPos(int index, Vector2 origin, double cellSize, double tileSpacing) {
+    if (isExiting) {
+      final gPos = _gridPosAlongTrack((index + 1) - _trackDistance);
+      return Vector2(
+        origin.x + gPos.x * cellSize + tileSpacing / 2.0,
+        origin.y + gPos.y * cellSize + tileSpacing / 2.0,
+      );
+    }
+    final c = lane.cells[index];
+    return Vector2(
+      origin.x + c.x * cellSize + tileSpacing / 2.0,
+      origin.y + c.y * cellSize + tileSpacing / 2.0,
+    ) + currentOffset;
+  }
+
+  void update(double dt, {int activeTracedCount = 0}) {
+    if (incompleteFlashAlpha > 0.0) {
+      incompleteFlashAlpha = max(0.0, incompleteFlashAlpha - dt * 2.8);
+    }
     if (isExiting) {
       _exitTime += dt;
-      // Quadratic acceleration flight: x(t) = v0*t + 0.5*a*t^2
-      final dist = (300.0 * _exitTime + 2200.0 * _exitTime * _exitTime);
-      currentOffset = _exitDir * dist;
-      opacity = (1.0 - _exitTime * 1.5).clamp(0.0, 1.0);
-      if (_exitTime > 0.65) {
+      // Smooth continuous acceleration starting right as the head wave peaks (~0.06s)
+      if (_exitTime > 0.06) {
+        final tm = _exitTime - 0.06;
+        _trackDistance = 3.2 * tm + 38.0 * tm * tm;
+      } else {
+        _trackDistance = 0.0;
+      }
+      opacity = 1.0;
+      if (_trackDistance >= lane.cells.length + 9.0) {
         isExited = true;
       }
     } else if (isBouncing) {
@@ -1104,6 +1851,21 @@ class _LaneAnimState {
         isBouncing = false;
         currentOffset = Vector2.zero();
         redFlashAlpha = 0.0;
+      }
+    }
+
+    // Smooth per-tile scale interpolation (eliminates 1-frame popping when pressing/releasing tiles)
+    final lerpFactor = min(1.0, dt * 24.0);
+    for (int i = 0; i < cellScales.length; i++) {
+      double targetScale = 1.0;
+      if (isExiting) {
+        targetScale = getExitCellScale(i);
+        cellScales[i] = targetScale;
+      } else {
+        if (activeTracedCount > 0 && i == activeTracedCount - 1) {
+          targetScale = 0.78;
+        }
+        cellScales[i] += (targetScale - cellScales[i]) * lerpFactor;
       }
     }
   }
@@ -1169,18 +1931,29 @@ class _FlyingRocket {
   final Vector2 start;
   final Vector2 target;
   final VoidCallback onImpact;
+  final double duration;
+  double delay;
 
   double progress = 0.0;
-  final double duration = 0.42;
   bool isFinished = false;
 
   _FlyingRocket({
     required this.start,
     required this.target,
     required this.onImpact,
+    this.delay = 0.0,
+    this.duration = 0.52,
   });
 
+  bool get hasLaunched => delay <= 0.0;
+
   void update(double dt) {
+    if (delay > 0.0) {
+      delay -= dt;
+      if (delay > 0.0) return;
+      dt = -delay;
+      delay = 0.0;
+    }
     progress += dt / duration;
     if (progress >= 1.0) {
       progress = 1.0;
